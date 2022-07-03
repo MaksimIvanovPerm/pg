@@ -12,6 +12,11 @@ firewall-cmd --reload
 usermod -a -G vboxsf maksim
 
 ##############
-How to install pg on OEL: https://techviewleo.com/install-postgresql-on-oracle-linux-linux/
+How to install pg on OEL: https://yum.postgresql.org/repopackages/
+	repo: 	https://yum.postgresql.org/repopackages/
+
+yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+yum makecache -y
+yum install postgresql14-server.x86_64 -y
 
 
