@@ -1,0 +1,17 @@
+yum search epel-release-el9
+yum install -y oracle-epel-release-el9.x86_64
+yum search screen
+yum install screen.x86_64 86_64
+yum install screen.x86_64
+yum search rlwrap
+yum install rlwrap.x86_64
+
+firewall-cmd --zone=public --permanent --add-service=ssh
+firewall-cmd --reload
+
+usermod -a -G vboxsf maksim
+
+##############
+How to install pg on OEL: https://techviewleo.com/install-postgresql-on-oracle-linux-linux/
+
+
