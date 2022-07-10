@@ -1,0 +1,7 @@
+##### psql set of commands: https://www.postgresql.org/docs/14/app-psql.html
+##### see Variables section there: AUTOCOMMIT and other default variables explained there
+# \set without any arguments displays the names and values of all currently-set psql variables.
+# \set qqq eee
+# ~/.psqlrc
+
+AUTOCOMMIT off
