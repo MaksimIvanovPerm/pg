@@ -4,6 +4,7 @@
 # \set qqq eee
 # ~/.psqlrc
 
+cat << __EOF__ > ~/.psqlrc
 AUTOCOMMIT off
 COMP_KEYWORD_CASE
 HISTFILE ~/.psql_history
@@ -12,7 +13,8 @@ HISTSIZE 1000
 FETCH_COUNT 100
 PROMPT1 '%m %> %#%n@%/ %x '
 ROW_COUNT
-
+__EOF__
+cat ~/.psqlrc
 
 ## git
 # https://stackoverflow.com/questions/4565700/how-to-specify-the-private-ssh-key-to-use-when-executing-shell-command-on-git
