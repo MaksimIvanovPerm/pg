@@ -69,39 +69,111 @@ COMMIT
 Правильно ли я понимаю: если, в read commited-моде сериалзиции, блокируемая тр-ция выдала свой запрос, с дорогим, в смысле стоимости выполнения, where-предложеним, встала в блокировку, то, после коммита в блокирующей тр-ции, у блокруемой тр-ции where-предложение будет выполняться по новой?
 8. В моде сериализации read commited выполнил
    1. В 1-й sql-сессии выполнил:
-```sql
-postgres@postgresql1:/home/student$ psql
-psql (14.4 (Ubuntu 14.4-1.pgdg20.04+1))
-Type "help" for help.
-
-[local]:5432 #postgres@postgres > insert into persons(first_name, second_name) values('sergey', 'sergeev');
-INSERT 0 1
-[local]:5432 #postgres@postgres *>
-```
+   ```sql
+   postgres@postgresql1:/home/student$ psql
+   psql (14.4 (Ubuntu 14.4-1.pgdg20.04+1))
+   Type "help" for help.
+   
+   [local]:5432 #postgres@postgres > insert into persons(first_name, second_name) values('sergey', 'sergeev');
+   INSERT 0 1
+   [local]:5432 #postgres@postgres *>
+   ```
    2. Во 2-й скл-сессии выполнил:
-```sql
-[local]:5432 #postgres@postgres >
-[local]:5432 #postgres@postgres > select * from persons;
- id | first_name | second_name
-----+------------+-------------
-  1 | ivan       | ivanov
-  2 | petr       | petrov
-(2 rows)
-
-[local]:5432 #postgres@postgres *>
-```
-Обе скл-сессии начали и продолжают, к этому моменту времени транзакции, это видно по значку `*` в промпте
-2-я скл-сессия не видит изменений сделанных 1-й скл-сессии, потому что эти изменения не были закоммичены к моменту запуска select-запроса в 2-й скл-сессии.
+   ```sql
+   [local]:5432 #postgres@postgres >
+   [local]:5432 #postgres@postgres > select * from persons;
+    id | first_name | second_name
+   ----+------------+-------------
+     1 | ivan       | ivanov
+     2 | petr       | petrov
+   (2 rows)
+   
+   [local]:5432 #postgres@postgres *>
+   ```
+   Обе скл-сессии начали и продолжают, к этому моменту времени транзакции, это видно по значку `*` в промпте
+   2-я скл-сессия не видит изменений сделанных 1-й скл-сессии, потому что эти изменения не были закоммичены к моменту запуска select-запроса в 2-й скл-сессии.
    3. В 1-й скл-сессии выполнил commit; Транзакция 1-й скл-сессии - закрылась.
    4. Во 2-й скл-сессии выполнил select-запрос к таблице. Новая запись - отобразилась, поскольку транзакция, создавшая эту, новую запись - была закоммичена до запуска данного select-статемента:
-```sql
-[local]:5432 #postgres@postgres *> select * from persons;
- id | first_name | second_name
-----+------------+-------------
-  1 | ivan       | ivanov
-  2 | petr       | petrov
-  3 | sergey     | sergeev
-(3 rows)
-
-[local]:5432 #postgres@postgres *>
-```
+   ```sql
+   [local]:5432 #postgres@postgres *> select * from persons;
+    id | first_name | second_name
+   ----+------------+-------------
+     1 | ivan       | ivanov
+     2 | petr       | petrov
+     3 | sergey     | sergeev
+   (3 rows)
+   
+   [local]:5432 #postgres@postgres *>
+   ```
+9. Завершил, в обоих скл-сессиях тр-ции, выставил другой уровень сериализации в обоих скл-сессиях:
+   ```sql
+   [local]:5432 #postgres@postgres > set transaction isolation level repeatable read;
+   SET
+   [local]:5432 #postgres@postgres *> show transaction isolation level;
+    transaction_isolation
+   -----------------------
+    repeatable read
+   (1 row)
+   
+   [local]:5432 #postgres@postgres *>
+   ```
+   Cудя по [док-ции](https://www.postgresql.org/docs/14/sql-set-transaction.html) команда `set transaction` выставляет уровень изоляции только для текущей    транзакции и одновременно - начинает её. 
+   Команда не влияет на уровень изоляции во всех последующих тр-циях.
+   Уровень сериалзиции `repeatable read` - отличается от `read commited` тем что сериализация выполняется уже не на уровне команд, а на уровне транзакций.
+   1. В 1-й скл-сессии выполнил ` insert into persons(first_name, second_name) values('sveta', 'svetova');`
+   2. Во 2-й скл-сессии новую строку - не видно:
+   ```sql
+   [local]:5432 #postgres@postgres > set transaction isolation level repeatable read;
+   SET
+   [local]:5432 #postgres@postgres *> show transaction isolation level;
+    transaction_isolation
+   -----------------------
+    repeatable read
+   (1 row)
+   
+   [local]:5432 #postgres@postgres *> select * from persons;
+    id | first_name | second_name
+   ----+------------+-------------
+     1 | ivan       | ivanov
+     2 | petr       | petrov
+     3 | sergey     | sergeev
+   (3 rows)
+   
+   [local]:5432 #postgres@postgres *>
+   ```
+   Во 2-й скл-сессии новой строки не видно, поскольку она была добавлена в рамках тр-ции ещё не закоммиченной, к моменту начала тр-ции во 2-й скл-сессии.
+   3. Выдача commit-а в 1-й тр-ции.
+   4. Повторный запрос табличных данных, во 2-й сел-сессии - новой строки всё ещё не видно:
+   ```sql
+   [local]:5432 #postgres@postgres > set transaction isolation level repeatable read;
+   SET
+   [local]:5432 #postgres@postgres *> show transaction isolation level;
+    transaction_isolation
+   -----------------------
+    repeatable read
+   (1 row)
+   
+   [local]:5432 #postgres@postgres *> select * from persons;
+    id | first_name | second_name
+   ----+------------+-------------
+     1 | ivan       | ivanov
+     2 | petr       | petrov
+     3 | sergey     | sergeev
+   (3 rows)
+   
+   [local]:5432 #postgres@postgres *> select * from persons;
+    id | first_name | second_name
+   ----+------------+-------------
+     1 | ivan       | ivanov
+     2 | petr       | petrov
+     3 | sergey     | sergeev
+   (3 rows)
+   
+   [local]:5432 #postgres@postgres *>
+   ```
+   Причина всё ещё та же - на уровне сериализации `repeatable read` транзакция видит только то что было закоммичено перед её запуском.
+   Т.е. коммит тр-ции в 1-й скл-сессии, в текущей обстановке ничего не поменял.
+   5. Выдача commit-а во 2-й скл-сессии и запрос таблицчных данных:
+   ![img](/HomeWorks/Lesson2/2_4.png)
+   Теперь, для select-команды, выданной после commit-а тр-ции выполнявшейся в repeatable read-моде, новая строка - видна.
+   Потому что select-команда - это уже новая, отдельная тр-ция, выполняющаяся в read committed моде и, для этой тр-ции - данная новая строка - уже относится к закоммиченным данным.
