@@ -4,17 +4,19 @@
 # \set qqq eee
 # ~/.psqlrc
 
+[ -f "~/.psql_history" ] && touch "~/.psql_history"
 cat << __EOF__ > ~/.psqlrc
-AUTOCOMMIT off
-COMP_KEYWORD_CASE
-HISTFILE ~/.psql_history
-HISTCONTROL none
-HISTSIZE 1000
-FETCH_COUNT 100
-PROMPT1 '%m %> %#%n@%/ %x '
-ROW_COUNT
+\set AUTOCOMMIT off
+\set COMP_KEYWORD_CASE preserve-upper
+\set HISTFILE ~/.psql_history
+\set HISTCONTROL none
+\set HISTSIZE 1000
+\set FETCH_COUNT 100
+\set PROMPT1 '%m:%> %#%n@%/ %x> '
+\set ROW_COUNT
 __EOF__
 cat ~/.psqlrc
+psql
 
 ## git
 # https://stackoverflow.com/questions/4565700/how-to-specify-the-private-ssh-key-to-use-when-executing-shell-command-on-git
