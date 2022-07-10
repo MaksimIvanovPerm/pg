@@ -11,12 +11,43 @@ firewall-cmd --reload
 
 usermod -a -G vboxsf maksim
 
-##############
+############## VM preparation 
+# local
 How to install pg on OEL: https://yum.postgresql.org/repopackages/
 	repo: 	https://yum.postgresql.org/repopackages/
 
 yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 yum makecache -y
 yum install postgresql14-server.x86_64 -y
+
+##### yacloud
+# vm-side
+sudo su - root
+apt update
+apt upgrade
+
+# local action
+ssh-keygen -t rsa -b 4096 -f yacloud -N ...
+eval 'ssh-agent' #cygwin eval < <(ssh-agent)
+ssh-add -v
+ssh-add -l
+
+##### install postgresql on ubuntu
+# https://www.postgresql.org/download/linux/ubuntu/
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update
+sudo apt-get install postgresql
+
+#### auth
+# https://www.postgresql.org/docs/current/auth-pg-hba-conf.html
+# /etc/postgresql/14/main/pg_hba.conf
+
+########################################
+# clients
+https://github.com/dbcli/pgcli
+https://github.com/mzarnitsa/psql
+
+~/.psqlrc
 
 

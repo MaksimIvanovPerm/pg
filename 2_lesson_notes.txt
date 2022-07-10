@@ -5,3 +5,17 @@
 # ~/.psqlrc
 
 AUTOCOMMIT off
+COMP_KEYWORD_CASE
+HISTFILE ~/.psql_history
+HISTCONTROL none
+HISTSIZE 1000
+FETCH_COUNT 100
+PROMPT1 '%m %> %#%n@%/ %x '
+ROW_COUNT
+
+
+## git
+# https://stackoverflow.com/questions/4565700/how-to-specify-the-private-ssh-key-to-use-when-executing-shell-command-on-git
+chmod 700 ./id*
+export export GIT_SSH_COMMAND="ssh -i /home/MAIvanov/otus/id_ed25519"
+git clone git@github.com:MaksimIvanovPerm/pg/git
