@@ -108,5 +108,21 @@
    time find "$SOURCE_DIR" -type f | xargs -n 1 -P "$DOP" -d "\n" -I {} -t bash -c rcopy\ \"\{\}\"
    ```
    ![6_4](/HomeWorks/Lesson6/6_4.png)
+4. После остановки субд - старую директорию: переименовал. В файле `/etc/postgresql/14/main/postgresql.conf` поправил параметр `data_directory`: задал целевую директорию
+   Процесс остановки и запуска: ![6_5](/HomeWorks/Lesson6/6_5.png)
+   Ошибка запуска, в системном журнале ОС-и, комментировалась так:
+   ```
+   Jul 22 13:29:20 postgresql1 postgresql@14-main[54748]: Removed stale pid file.
+   Jul 22 13:29:20 postgresql1 postgresql@14-main[54748]: Error: /usr/lib/postgresql/14/bin/pg_ctl /usr/lib/postgresql/14/bin/pg_ctl star>
+   Jul 22 13:29:20 postgresql1 postgresql@14-main[54748]: 2022-07-22 13:29:20.564 UTC [54767] FATAL:  data directory "/mnt/pgdata" has in>
+   Jul 22 13:29:20 postgresql1 postgresql@14-main[54748]: 2022-07-22 13:29:20.564 UTC [54767] DETAIL:  Permissions should be u=rwx (0700)>
+   Jul 22 13:29:20 postgresql1 postgresql@14-main[54748]: pg_ctl: could not start server
+   Jul 22 13:29:20 postgresql1 postgresql@14-main[54748]: Examine the log output.
+   ...
+   ```
+   Выполнил `chmod -R 700 /mnt/pgdata` и субд запустилась успешно.
+   Запрос к контрольной таблице:
+   ![6_6](/HomeWorks/Lesson6/6_6.png)
+
 
 
