@@ -28,5 +28,85 @@
    ![6_2_1](/HomeWorks/Lesson6/6_2_1.png)
 2. Контроль состояния кластера. Текущая дата-директория: `/var/lib/postgresql/14/main`; Создание тестовой таблицы:
    ![6_3](/HomeWorks/Lesson6/6_3.png) 
-3. 
+3. В жизни: продукционную бд - конечно же не 1) оставливать будет сложно из за сопровотивления бизнеса и 2) бизнес будет принуждать к возможно меньшему даунтайму. 
+   Поэтому и з любопытства перемещение датафайлов выполнил в две операции.
+   ```shell
+   sudo chown -R postgres:postgres /mnt/pgdata
+   export PGCONF="/etc/postgresql/14/main/postgresql.conf"
+   export RSYNC="/usr/bin/rsync"
+   export SOURCE_DIR="/var/lib/postgresql/14/main"
+   export TARGET_DIR="/mnt/pgdata"
+   
+   #### Directory deals
+   cd
+   cat /dev/null > ./temp.txt
+   find "$SOURCE_DIR" -type d | tee -a ./temp.txt
+
+   cat /dev/null > ./cmd.txt
+   while read line; do 
+         #echo "$line"
+         v_str="$line"
+         v_str=${v_str/#${SOURCE_DIR}/"$TARGET_DIR"}
+         #echo "${line} -> ${v_str}"
+         echo "mkdir ${v_str}" | tee -a "./cmd.txt"
+   done < <(cat ./temp.txt)
+   chmod u+x ./cmd.txt; ./cmd.txt
+
+   #### if necessery
+   find "$TARGET_DIR" -type f -delete; find "$TARGET_DIR" -type d -delete
+
+   function rcopy(){
+   local v_file="$1"
+   local v_cmd=""
+   local v_path=""
+ 
+   #[ ! -d "$SOURCE_DIR" ] && exit 3
+   #[ ! -d "$TARGET_DIR" ] && exit 4
+ 
+   if [ -f "$v_file" ]; then
+      v_path=$(dirname "$v_file" )
+      v_path=${v_path/#${SOURCE_DIR}/"$TARGET_DIR"}
+      v_cmd="${RSYNC} ${ROPTIONS} \"$v_file\" \"${v_path}\""
+      #echo "$v_cmd"
+      eval "$v_cmd"
+   else
+      exit 4
+   fi
+   }
+   export -f rcopy
+
+   #### initial copy, making files at remote-site
+   DOP="3"
+   export ROPTIONS="-pogtD --progress --inplace --partial -4 -v --checksum --ignore-existing"
+   time find "$SOURCE_DIR" -type f | xargs -n 1 -P "$DOP" -d "\n" -I {} -t bash -c rcopy\ \"\{\}\"
+ 
+   find "$SOURCE_DIR" -type f | wc -l
+   find "$TARGET_DIR" -type f | wc -l
+
+   #### control
+   cat /dev/null > ./temp.txt
+   for i in $( find "$SOURCE_DIR" -type f ); do
+       v_file=$( basename "$i" )
+       v_path=$(dirname "$i" )
+       v_path=${v_path/#${SOURCE_DIR}/"$TARGET_DIR"}
+       v_file="${v_path}/${v_file}"
+       #echo "$i $v_file"
+       v_md5_1=$( md5sum "$i" | cut -f 1 -d " " )
+       v_md5_2="-"
+       [ -f "$v_file" ] && v_md5_2=$( md5sum "$v_file" | cut -f 1 -d " " )
+       echo "$i $v_file $v_md5_1 $v_md5_2" >> ./temp.txt
+   done
+   
+   cat ./temp.txt | wc -l
+   cat ./temp.txt | awk '{if ( $3 != $4 ){ printf "%s %s\n", $1, $2; }}' | wc -l
+   ```
+   Т.е.: не останавливая кластер - откопировал всё, в онлайне.
+   После остановки кластера - докопировал, только изменения файлов, из исходной директори, в целевую:
+   ```shell
+   DOP="3"
+   export ROPTIONS="-pogtD --progress --inplace --partial -4 -v --checksum --ignore-existing"
+   time find "$SOURCE_DIR" -type f | xargs -n 1 -P "$DOP" -d "\n" -I {} -t bash -c rcopy\ \"\{\}\"
+   ```
+   ![6_4](/HomeWorks/Lesson6/6_4.png)
+
 
