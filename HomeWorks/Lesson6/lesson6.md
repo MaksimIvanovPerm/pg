@@ -26,3 +26,7 @@
    root@postgresql1:~# shutdown -r now
    ```
    ![6_2_1](/HomeWorks/Lesson6/6_2_1.png)
+2. Контроль состояния кластера. Текущая дата-директория: `/var/lib/postgresql/14/main`; Создание тестовой таблицы:
+   ![6_3](/HomeWorks/Lesson6/6_3.png) 
+3. 
+
