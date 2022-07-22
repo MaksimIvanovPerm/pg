@@ -1,0 +1,145 @@
+pgbench -i -s 10 --foreign-keys --no-vacuum postgres
+pgbench --client=5 -P 2 -r -l -t 1000  --no-vacuum postgres
+
+mkdir -p /mnt/pgdata/14/main
+pg_createcluster --datadir=/mnt/pgdata/14/main --logfile=/var/log/postgresql/postgresql-14-main.log --start --start-conf=auto 14 main
+
+export PSQL="/usr/bin/psql"
+export DBNAME="bmdb"
+export VERBOSE="1"
+export LOGFILE="/tmp/logfile.txt"
+export DATA_DIR="/mnt/pgdata/14/main/tdata"
+export IDX_DIR="/mnt/pgdata/14/main/idata"
+export DATA_TS_NAME="tabdata"
+export INDX_TS_NAME="idxdata"
+
+output(){
+local v_msg="$1"
+if [ ! -z "$v_msg" ]; then
+   [ "$VERBOSE" -eq "1" ] && echo "`date +%Y.%m.%d:%H.%M.%S` ${v_msg}"
+   echo "`date +%Y.%m.%d:%H.%M.%S` ${v_msg}" >> "$LOGFILE"
+fi
+}
+
+checkdb(){
+local v_dbname="$1"
+if [ ! -z "$v_dbname" ]; then
+   v_count=$($PSQL << __EOF__ | tr -d [:space:] | tr -d [:cntrl:]
+\t on
+select count(*) as col1 from pg_database where datistemplate='f' and datname='${v_dbname}' limit 1;
+\q
+__EOF__
+)
+   if [ "$v_count" -eq "1" ]; then
+      return 0
+   else
+      return 1
+   fi
+fi
+}
+
+dropdb(){
+local v_dbname="$1"
+local v_rc=""
+
+if [ ! -z "$v_dbname" ]; then
+   checkdb "$v_dbname"
+   v_rc="$?"
+   if [ "$v_rc" -eq "0" ]; then
+      output "Ok database ${v_dbname} exists and it is not a template"
+      $PSQL -q -c "drop database ${v_dbname} (force);"
+      return "$?"
+   else
+      output "There is no database ${v_dbname}"
+      return "1"
+   fi
+fi
+}
+
+createdb(){
+local v_dbname="$1"
+local v_rc=""
+
+if [ ! -z "$v_dbname" ]; then
+   checkdb "$v_dbname"
+   v_rc="$?"
+   if [ "$v_rc" -ne "0" ]; then
+      output "Ok database ${v_dbname} does not exists"
+      $PSQL -q -c "create database ${v_dbname};"
+      return "$?"
+   else
+      output "There is database ${v_dbname}"
+      return "1"
+   fi
+fi
+}
+
+createts(){
+local v_dbname="$1"
+local v_tsname="$2"
+local v_location="$3"
+local v_rc=""
+
+if [ ! -d "$v_location" ]; then
+   output "There is no directory ${v_location}"
+   return 1
+fi
+
+v_rc=$( find "$v_location" | grep -v "$v_location" | wc -l )
+if [ "$v_rc" -ne "0" ]; then
+   output "Directory ${v_location} is not empty"
+   return 1
+fi
+
+if [ ! -z "$v_dbname" ]; then
+   checkdb "$v_dbname"
+   v_rc="$?"
+   if [ "$v_rc" -eq "0" ]; then
+      output "Ok database ${v_dbname} exists; Try to create ts $v_tsname there"
+      $PSQL << __EOF__ 1>>"$LOGFILE" 2>&1
+CREATE TABLESPACE ${v_tsname} location '${v_location}'; 
+\q
+__EOF__
+      return "$?"
+   else
+      output "There is no database ${v_dbname}"
+      return "1"
+   fi
+fi
+}
+
+CMD_HASHES="$HOME/cmd_hashes.txt"
+cat /dev/null > "$CMD_HASHES"
+CMD_LATENCY="$HOME/cmd_latency.txt"
+cat /dev/null > "$CMD_LATENCY"
+
+TEST_SET_LABEL="onedisk"
+TEST_NUMBER="1"
+for((k=1; k<20; k+=2)); do
+    echo "$k $TEST_NUMBER"
+
+dropdb "$DBNAME"
+[ "$?" -ne "0" ] && break
+createdb "$DBNAME"
+[ "$?" -ne "0" ] && break
+createts "bmdb" "$DATA_TS_NAME" "$DATA_DIR"
+createts "bmdb" "$INDX_TS_NAME" "$IDX_DIR"
+pgbench -i -s 10 --foreign-keys --no-vacuum "$DBNAME" --index-tablespace="$INDX_TS_NAME" --tablespace="$DATA_TS_NAME"
+pgbench --client="$k" -r -l -t 1000 --no-vacuum "$DBNAME" | tee "/tmp/result.txt"
+v_tps=$(egrep -o "^tps = [0-9]+\.[0-9]+" /tmp/result.txt | awk '{print $3;}')
+v_n=$( grep -n "statement latencies in milliseconds" /tmp/result.txt | cut -f 1 -d ":" )
+cat /tmp/result.txt | awk -v from_line="$v_n" '{if ( NR > from_line ) {print $0;} }' | sed -r "s/^ +//" | sed -r "s/^([0-9]+\.[0-9]+)\W+(.*)/\1;\2/" > /tmp/temp1.txt
+while read line
+do
+   #echo "$line"
+   v_latency=$( echo -n "$line" | cut -f 1 -d ";" )
+   v_cmd=$( echo -n "$line" | cut -f 2 -d ";" )
+   v_cmd_md5=$( echo -n "$v_cmd" | md5sum | cut -f 1 -d " " )
+   cat "$CMD_HASHES" | grep -m 1 -q -- "$v_cmd_md5"
+   [ "$?" -ne "0" ] && echo "${v_cmd_md5} ${v_cmd}" >> "$CMD_HASHES"
+   echo "${TEST_SET_LABEL} ${TEST_NUMBER} ${v_latency} ${v_cmd_md5}" >> "$CMD_LATENCY"
+done < <(cat /tmp/temp1.txt)
+
+    TEST_NUMBER=$((TEST_NUMBER+1))
+    find /mnt/pgdata/14/main/pg_wal/ -type f -delete
+done
