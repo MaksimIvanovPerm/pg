@@ -130,3 +130,18 @@
 P.S.: позже понял что целевую директорию лучше было сделать такой: `mkdir -p /mnt/pgdata/14/main`
 Т.е.: не ложить всё сразу в точку монтироваия.
 
+1. Заметка к бенчмаркингу: не надо удалять прям все wal-логи. Ибо и, понятно почему, можно словить, при попытке перезапуска субд:
+   ```
+   2022-07-23 06:47:01.063 UTC [845] LOG:  starting PostgreSQL 14.4 (Ubuntu 14.4-1.pgdg20.04+1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0, 64-bit
+   2022-07-23 06:47:01.064 UTC [845] LOG:  listening on IPv6 address "::1", port 5432
+   2022-07-23 06:47:01.064 UTC [845] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+   2022-07-23 06:47:01.066 UTC [845] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+   2022-07-23 06:47:01.070 UTC [846] LOG:  database system was shut down at 2022-07-22 19:14:13 UTC
+   2022-07-23 06:47:01.070 UTC [846] LOG:  invalid primary checkpoint record
+   2022-07-23 06:47:01.070 UTC [846] PANIC:  could not locate a valid checkpoint record
+   2022-07-23 06:47:01.070 UTC [845] LOG:  startup process (PID 846) was terminated by signal 6: Aborted
+   2022-07-23 06:47:01.070 UTC [845] LOG:  aborting startup due to startup process failure
+   2022-07-23 06:47:01.071 UTC [845] LOG:  database system is shut down
+   ```
+
+
