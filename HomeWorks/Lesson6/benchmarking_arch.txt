@@ -1,15 +1,17 @@
-pgbench -i -s 10 --foreign-keys --no-vacuum postgres
-pgbench --client=5 -P 2 -r -l -t 1000  --no-vacuum postgres
+#pgbench -i -s 10 --foreign-keys --no-vacuum postgres
+#pgbench --client=5 -P 2 -r -l -t 1000  --no-vacuum postgres
 
-mkdir -p /mnt/pgdata/14/main
-pg_createcluster --datadir=/mnt/pgdata/14/main --logfile=/var/log/postgresql/postgresql-14-main.log --start --start-conf=auto 14 main
+#mkdir -p /mnt/pgdata/14/main
+#pg_dropcluster --stop 14 main
+#pg_createcluster --datadir=/mnt/pgdata/14/main --logfile=/var/log/postgresql/postgresql-14-main.log --start --start-conf=auto 14 main -- --wal-segsize=128
 
+export PGCONF="/etc/postgresql/14/main/postgresql.conf"
 export PSQL="/usr/bin/psql"
 export DBNAME="bmdb"
 export VERBOSE="1"
 export LOGFILE="/tmp/logfile.txt"
-export DATA_DIR="/mnt/pgdata/14/main/tdata"
-export IDX_DIR="/mnt/pgdata/14/main/idata"
+export DATA_DIR="/mnt/pgdata/14/main/tdata"; [ ! -d "DATA_DIR" ] && mkdir -p "$DATA_DIR"
+export IDX_DIR="/mnt/pgdata/14/main/idata"; [ ! -d "IDX_DIR" ] && mkdir -p "$IDX_DIR"
 export DATA_TS_NAME="tabdata"
 export INDX_TS_NAME="idxdata"
 
@@ -82,7 +84,7 @@ local v_rc=""
 
 if [ ! -d "$v_location" ]; then
    output "There is no directory ${v_location}"
-   return 1
+   mkdir -p "$v_location"
 fi
 
 v_rc=$( find "$v_location" | grep -v "$v_location" | wc -l )
@@ -112,34 +114,39 @@ CMD_HASHES="$HOME/cmd_hashes.txt"
 cat /dev/null > "$CMD_HASHES"
 CMD_LATENCY="$HOME/cmd_latency.txt"
 cat /dev/null > "$CMD_LATENCY"
+METRIC_LOG="$HOME/metric_log.txt"
+cat /dev/null > "$METRIC_LOG"
 
-TEST_SET_LABEL="onedisk"
+TEST_SET_LABEL="onedisk_wal-segsize_128"
 TEST_NUMBER="1"
-for((k=1; k<20; k+=2)); do
-    echo "$k $TEST_NUMBER"
-
-dropdb "$DBNAME"
-[ "$?" -ne "0" ] && break
-createdb "$DBNAME"
-[ "$?" -ne "0" ] && break
-createts "bmdb" "$DATA_TS_NAME" "$DATA_DIR"
-createts "bmdb" "$INDX_TS_NAME" "$IDX_DIR"
-pgbench -i -s 10 --foreign-keys --no-vacuum "$DBNAME" --index-tablespace="$INDX_TS_NAME" --tablespace="$DATA_TS_NAME"
-pgbench --client="$k" -r -l -t 1000 --no-vacuum "$DBNAME" | tee "/tmp/result.txt"
-v_tps=$(egrep -o "^tps = [0-9]+\.[0-9]+" /tmp/result.txt | awk '{print $3;}')
-v_n=$( grep -n "statement latencies in milliseconds" /tmp/result.txt | cut -f 1 -d ":" )
-cat /tmp/result.txt | awk -v from_line="$v_n" '{if ( NR > from_line ) {print $0;} }' | sed -r "s/^ +//" | sed -r "s/^([0-9]+\.[0-9]+)\W+(.*)/\1;\2/" > /tmp/temp1.txt
-while read line
-do
-   #echo "$line"
-   v_latency=$( echo -n "$line" | cut -f 1 -d ";" )
-   v_cmd=$( echo -n "$line" | cut -f 2 -d ";" )
-   v_cmd_md5=$( echo -n "$v_cmd" | md5sum | cut -f 1 -d " " )
-   cat "$CMD_HASHES" | grep -m 1 -q -- "$v_cmd_md5"
-   [ "$?" -ne "0" ] && echo "${v_cmd_md5} ${v_cmd}" >> "$CMD_HASHES"
-   echo "${TEST_SET_LABEL} ${TEST_NUMBER} ${v_latency} ${v_cmd_md5}" >> "$CMD_LATENCY"
-done < <(cat /tmp/temp1.txt)
-
-    TEST_NUMBER=$((TEST_NUMBER+1))
-    find /mnt/pgdata/14/main/pg_wal/ -type f -delete
-done
+for ((j=1; j<=7; j++)); do
+    for((k=1; k<20; k+=2)); do
+        echo "$j $k $TEST_NUMBER"
+    
+    dropdb "$DBNAME"
+    createdb "$DBNAME"
+    [ "$?" -ne "0" ] && break
+    createts "bmdb" "$DATA_TS_NAME" "$DATA_DIR"
+    createts "bmdb" "$INDX_TS_NAME" "$IDX_DIR"
+    pgbench -i -s 10 --foreign-keys --no-vacuum "$DBNAME" --index-tablespace="$INDX_TS_NAME" --tablespace="$DATA_TS_NAME"
+    echo "Doing: pgbench --client="$k" -r -l -t 1000 --no-vacuum ${DBNAME}"
+    pgbench --client="$k" -r -l -t 1000 --no-vacuum "$DBNAME" | tee "/tmp/result.txt"
+    v_tps=$(egrep -o "^tps = [0-9]+\.[0-9]+" /tmp/result.txt | awk '{print $3;}')
+    v_n=$( grep -n "statement latencies in milliseconds" /tmp/result.txt | cut -f 1 -d ":" )
+    cat /tmp/result.txt | awk -v from_line="$v_n" '{if ( NR > from_line ) {print $0;} }' | sed -r "s/^ +//" | sed -r "s/^([0-9]+\.[0-9]+)\W+(.*)/\1;\2/" > /tmp/temp1.txt
+    while read line
+    do
+       #echo "$line"
+       v_latency=$( echo -n "$line" | cut -f 1 -d ";" )
+       v_cmd=$( echo -n "$line" | cut -f 2 -d ";" )
+       v_cmd_md5=$( echo -n "$v_cmd" | md5sum | cut -f 1 -d " " )
+       cat "$CMD_HASHES" | grep -m 1 -q -- "$v_cmd_md5"
+       [ "$?" -ne "0" ] && echo "${v_cmd_md5} ${v_cmd}" >> "$CMD_HASHES"
+       echo "${TEST_SET_LABEL} ${TEST_NUMBER} ${v_latency} ${v_cmd_md5}" >> "$CMD_LATENCY"
+    done < <(cat /tmp/temp1.txt)
+    
+        printf "%s\t%d\t%d\t%s\n" ${TEST_SET_LABEL} ${TEST_NUMBER} ${k} ${v_tps} >> "$METRIC_LOG"
+        TEST_NUMBER=$((TEST_NUMBER+1))
+        #find /mnt/pgdata/14/main/pg_wal/ -type f -delete not need when archive_mode=off
+    done #loop by k, number of given test, in a given test-session
+done #loop by j, number of test-session
