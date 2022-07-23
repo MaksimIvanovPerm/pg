@@ -143,5 +143,37 @@ P.S.: позже понял что целевую директорию лучш�
    2022-07-23 06:47:01.070 UTC [845] LOG:  aborting startup due to startup process failure
    2022-07-23 06:47:01.071 UTC [845] LOG:  database system is shut down
    ```
+   Имеет смысл выставить `archive_mode = off`, [пишут](https://dba.stackexchange.com/questions/252461/does-postgres-automatically-rotate-wal-files-out-pg-xlog-if-archive-mode-is-of) что:
+   ```
+   If archive_mode = off, PostgreSQL will delete old WAL files as soon as they are older than the latest checkpoint. 
+   These checkpoints occur by default at least every 5 minutes, so there should never be many old WAL files around.
+
+   If you set archive_mode = on, a WAL file are only deleted once archive_command has returned success for that file. An empty archive_command should always do that immediately.
+   It is a tradition to set archive_command = '/bin/true' to indicate that you temporarily disabled archiving.
+   ```
+   Посмотреть значение конф-х параметров:
+   ```shell
+   [local]:5432 #postgres@postgres > select name, setting from pg_settings where name like '%archive%';
+              name            |  setting
+   ---------------------------+------------
+    archive_cleanup_command   |
+    archive_command           | (disabled)
+    archive_mode              | off
+    archive_timeout           | 0
+    max_standby_archive_delay | 30000
+   (5 rows)
+   
+   [local]:5432 #postgres@postgres *> commit;
+   COMMIT
+   [local]:5432 #postgres@postgres > show archive_mode;
+    archive_mode
+   --------------
+    off
+   (1 row)
+   
+   [local]:5432 #postgres@postgres *> commit;
+   COMMIT
+   [local]:5432 #postgres@postgres >
+   ```
 
 
