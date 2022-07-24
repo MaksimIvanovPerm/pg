@@ -225,6 +225,50 @@ P.S.: позже понял что целевую директорию лучш�
    commit;
    copy cmd_latency from '/var/lib/postgresql/cmd_latency.txt' with (format text, delimiter ' ');
    commit;
+   
+   copy (
+select 'onedisk' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log where tag='onedisk' 
+      group by clientnum 
+      order by clientnum asc) v
+union all
+select 'onedisk_wal-segsize_128' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log where tag='onedisk_wal-segsize_128' 
+      group by clientnum 
+      order by clientnum asc) v
+union all
+select 'twodisk_wal-segsize_128' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log 
+      where tag='twodisk_wal-segsize_128' 
+      group by clientnum order by clientnum asc) v
+union all
+select 'twodisk_wal-segsize_128_ssd' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log 
+      where tag='twodisk_wal-segsize_128_ssd' 
+      group by clientnum order by clientnum asc) v
+union all
+select 'twodisk_wal-segsize_128_ssd_wb64m' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log 
+      where tag='twodisk_wal-segsize_128_ssd_wb64m' 
+      group by clientnum order by clientnum asc) v
+union all
+select 'twodisk_wal-segsize_128_ssd_wb64m_scoff' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log 
+      where tag='twodisk_wal-segsize_128_ssd_wb64m_scoff' 
+      group by clientnum order by clientnum asc) v
+union all
+select 'twodisk_wal-segsize_128_ssd_wb64m_scoff_fsoff' as tag, v.* 
+from (select clientnum, min(tps) as mintps, avg(tps) as avgtps, max(tps) as maxtps 
+      from metric_log 
+      where tag='twodisk_wal-segsize_128_ssd_wb64m_scoff_fsoff' 
+      group by clientnum order by clientnum asc) v
+) to '/tmp/report.txt' with (format csv, delimiter ';', header true);
    ```
 
 Выводы:
