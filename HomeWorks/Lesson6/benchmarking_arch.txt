@@ -118,7 +118,7 @@ CMD_LATENCY="$HOME/cmd_latency.txt"
 METRIC_LOG="$HOME/metric_log.txt"
 #cat /dev/null > "$METRIC_LOG"
 
-TEST_SET_LABEL="twodisk_wal-segsize_128_ssd_wb64m"
+TEST_SET_LABEL="twodisk_wal-segsize_128_ssd_wb64m_scoff_fsoff"
 TEST_NUMBER="1"
 for ((j=1; j<=7; j++)); do
     for((k=1; k<20; k+=2)); do
@@ -142,7 +142,7 @@ for ((j=1; j<=7; j++)); do
        v_cmd=$( echo -n "$line" | cut -f 2 -d ";" )
        v_cmd_md5=$( echo -n "$v_cmd" | md5sum | cut -f 1 -d " " )
        cat "$CMD_HASHES" | grep -m 1 -q -- "$v_cmd_md5"
-       [ "$?" -ne "0" ] && echo "${v_cmd_md5} ${v_cmd}" >> "$CMD_HASHES"
+       [ "$?" -ne "0" ] && echo "${v_cmd_md5};${v_cmd}" >> "$CMD_HASHES"
        echo "${TEST_SET_LABEL} ${TEST_NUMBER} ${v_latency} ${v_cmd_md5}" >> "$CMD_LATENCY"
     done < <(cat /tmp/temp1.txt)
     
@@ -151,3 +151,19 @@ for ((j=1; j<=7; j++)); do
         #find /mnt/pgdata/14/main/pg_wal/ -type f -delete not need when archive_mode=off
     done #loop by k, number of given test, in a given test-session
 done #loop by j, number of test-session
+
+create table metric_log(tag text, testnum int, clientnum int, tps float);
+commit;
+--for text-format: default delimiter is tab;
+copy metric_log from '/var/lib/postgresql/metric_log.txt' with (format text); 
+commit;
+
+create table cmd_hases(hash text, cmd text);
+commit;
+copy cmd_hases from '/var/lib/postgresql/cmd_hashes.txt' with (format text, delimiter ';');
+commit;
+
+create table cmd_latency(tag text, testnum int, latency float, hash text);
+commit;
+copy cmd_latency from '/var/lib/postgresql/cmd_latency.txt' with (format text, delimiter ' ');
+commit;
