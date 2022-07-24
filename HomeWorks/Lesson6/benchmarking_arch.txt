@@ -11,7 +11,8 @@ export DBNAME="bmdb"
 export VERBOSE="1"
 export LOGFILE="/tmp/logfile.txt"
 export DATA_DIR="/mnt/pgdata/14/main/tdata"; [ ! -d "DATA_DIR" ] && mkdir -p "$DATA_DIR"
-export IDX_DIR="/mnt/pgdata/14/main/idata"; [ ! -d "IDX_DIR" ] && mkdir -p "$IDX_DIR"
+export IDX_DIR="/mnt/pgindex/14/main/idata"; [ ! -d "IDX_DIR" ] && mkdir -p "$IDX_DIR"
+export WAL_DIR="/mnt/pgwallogs/14/main/pg_wal"; [ ! -d "WAL_DIR" ] && mkdir -p "$WAL_DIR"
 export DATA_TS_NAME="tabdata"
 export INDX_TS_NAME="idxdata"
 
@@ -111,13 +112,13 @@ fi
 }
 
 CMD_HASHES="$HOME/cmd_hashes.txt"
-cat /dev/null > "$CMD_HASHES"
+#cat /dev/null > "$CMD_HASHES"
 CMD_LATENCY="$HOME/cmd_latency.txt"
-cat /dev/null > "$CMD_LATENCY"
+#cat /dev/null > "$CMD_LATENCY"
 METRIC_LOG="$HOME/metric_log.txt"
-cat /dev/null > "$METRIC_LOG"
+#cat /dev/null > "$METRIC_LOG"
 
-TEST_SET_LABEL="onedisk_wal-segsize_128"
+TEST_SET_LABEL="twodisk_wal-segsize_128_ssd_wb64m"
 TEST_NUMBER="1"
 for ((j=1; j<=7; j++)); do
     for((k=1; k<20; k+=2)); do
