@@ -235,16 +235,13 @@ P.S.: позже понял что целевую директорию лучш�
    ```
 5. Обработка данных от нагрузочного тестирования:
    ```sql
+   \set AUTOCOMMIT on
    create table metric_log(tag text, testnum int, clientnum int, tps float);
-   commit;
    --for text-format: default delimiter is tab;
    copy metric_log from '/var/lib/postgresql/metric_log.txt' with (format text); 
-   commit;
-   
+  
    create table cmd_hases(hash text, cmd text);
-   commit;
    copy cmd_hases from '/var/lib/postgresql/cmd_hashes.txt' with (format text, delimiter ';');
-   commit;
    
    create table cmd_latency(tag text, testnum int, latency float, hash text);
    commit;
