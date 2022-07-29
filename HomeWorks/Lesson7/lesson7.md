@@ -42,13 +42,14 @@
    GRANT ROLE
    [local]:5432 #postgres@testdb > \q
    postgres@postgresql1:~$ cat ~/.bashrc
-   #echo "Welcome again!"
-   PGCONF=$( psql -t -c "show config_file;" | tr -d [:cntrl:] )
+   PGCONF=$( psql -t -c "show config_file;" | tr -d [:cntrl:] | sed -r "s/^ +//" )
    export PGCONF="$PGCONF"
-   
-   
-   HBAFILE=$( psql -t -c "show hba_file;" | tr -d [:cntrl:] )
+   HBAFILE=$( psql -t -c "show hba_file;" | tr -d [:cntrl:] | sed -r "s/^ +//" )
    export HBAFILE="$HBAFILE"
+   cat << __EOF__ | column -t
+   PGCONF "$PGCONF"
+   HBAFILE "$HBAFILE"
+   __EOF__
    postgres@postgresql1:~$ HBAFILE=$( psql -t -c "show hba_file;" | tr -d [:cntrl:] ); export HBAFILE="$HBAFILE"
    postgres@postgresql1:~$ grep "testread" $HBAFILE
    local   testdb          testread                                md5
