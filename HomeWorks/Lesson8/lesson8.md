@@ -174,7 +174,7 @@
    Надо полагать что связано с тем что, в зависимости от настроек, автовакуум может не сразу, от начала теста, начать работать.
 7. Выбрал для варьирования такой набор параметров автовакуума:
    ```
-   autovacuum_analyze_scale_factor		[0.01, 0.9], fl
+   autovacuum_analyze_scale_factor		[0.01, 0.9], float
    autovacuum_analyze_threshold     [50, 5000], int
    autovacuum_max_workers           [1,5], int
    autovacuum_naptime               [1,180], int
