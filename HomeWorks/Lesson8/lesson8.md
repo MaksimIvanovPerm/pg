@@ -175,11 +175,11 @@
 7. Выбрал для варьирования такой набор параметров автовакуума:
    ```
    autovacuum_analyze_scale_factor		[0.01, 0.9], fl
-   autovacuum_analyze_threshold		[50, 5000], int
-   autovacuum_max_workers				[1,5], int
-   autovacuum_naptime					[1,180], int
-   autovacuum_vacuum_scale_factor		[0.01, 0.9], float
-   autovacuum_vacuum_threshold			[50, 5000], int
+   autovacuum_analyze_threshold     [50, 5000], int
+   autovacuum_max_workers           [1,5], int
+   autovacuum_naptime               [1,180], int
+   autovacuum_vacuum_scale_factor   [0.01, 0.9], float
+   autovacuum_vacuum_threshold      [50, 5000], int
    ```
 8. Для оркестровки-автоматизации выполнения тестов использовался [cran-r](https://cran.r-project.org/)
    Этот язык программирования - отлично умеет в скрипты, отлично интегрируется с башем. 
