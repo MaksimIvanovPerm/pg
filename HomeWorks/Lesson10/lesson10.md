@@ -135,8 +135,8 @@
    ![10_9](/HomeWorks/Lesson10/10_9.png)
    Т.е.: `tps = 2575` и генерация wal-логов: `~15.5Мб.сек`
    В записях про чекпойнты, в логе кластера, принципиальных изменений нет, кроме, конечно, кол-ва обработанных дарти-буферов и релевантных, к этой количественно возросшей активности, затрат.
-   ![10_10](/HomeWorks/Lesson10/10_10.png)
-   Из деградации - подросли, на порядок, `longest` значения, времени синкания дарти-блоков в датафайлы.
+   ![10_17](/HomeWorks/Lesson10/10_17.png)
+   Из деградации - подросли, кратно, `longest` значения, времени синкания дарти-блоков в датафайлы.
    ```shell
    grep "LOG:  checkpoint complete:"  $PGLOG | sed -r "s/UTC\W+\[[0-9\-]+\]//" | sed -r "s/ LOG:  checkpoint complete: wrote\W+[0-9]+\W+buffers \([0-9\.]+%\);\W+[0-9]+ WAL file\(s\) added, [0-9]+ removed, [0-9]+ recycled;//" | awk '{printf "%d:%s\n", NR, $0;}' | column -t
    21:2022-08-05  12:25:27.124  write=26.094s,  sync=0.013s,  total=26.192s;  sync  files=14,  longest=0.006s,  average=0.001s;  distance=222089  kB,  estimate=222089  kB
@@ -160,7 +160,7 @@
    39:2022-08-05  12:34:27.186  write=26.869s,  sync=0.023s,  total=27.022s;  sync  files=5,   longest=0.018s,  average=0.005s;  distance=206174  kB,  estimate=231981  kB
    40:2022-08-05  12:34:57.115  write=26.867s,  sync=0.009s,  total=26.927s;  sync  files=6,   longest=0.004s,  average=0.002s;  distance=227589  kB,  estimate=231542  kB
    ```
-   Т.е. в работе самого чекпойнта - ничего не поменялось, кроме объёма работы.
+   Т.е. в работе самого чекпойнта - ничего не поменялось, кроме объёма работы/ед.времени;
    Повышение продуктивности по tps-ам и кол-ва дарти-блоков связано с значительным уменьшением времени обслуживания базой коммит-ов, при `synchronous_commit='off'`
    Журнальные данные, по закоммичиваемой тр-ции, пишутся, из вал-буфера в текущий вал-лог без выполнения сискола `fcync()`
    Т.е. это запись в файловый кеш ОС-и, а не в вал-лог на диске.
@@ -179,6 +179,7 @@
    pg_createcluster --start --start-conf=auto 14 main -- --no-sync --data-checksums
    ```
    ![10_10](/HomeWorks/Lesson10/10_10.png)
+   Выполнил:
    ```shell
    select name, setting from pg_settings where name in ('data_checksums','ignore_checksum_failure') order by name;
    create table testtab(col1 int);
@@ -205,9 +206,10 @@
    2022-08-05 13:38:57.168 UTC [2258] postgres@postgres ERROR:  current transaction is aborted, commands ignored until end of transaction block
    2022-08-05 13:38:57.168 UTC [2258] postgres@postgres STATEMENT:  CLOSE _psql_cursor
    ```
+   Выполнил:
    ```sql
    alter system set ignore_checksum_failure='on';
    select pg_reload_conf();
    ```
-   ![10_15](/HomeWorks/Lesson10/10_15.png)
+   ![10_16](/HomeWorks/Lesson10/10_16.png)
    
