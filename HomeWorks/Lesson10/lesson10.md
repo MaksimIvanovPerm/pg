@@ -7,8 +7,6 @@
     Так он, вообще говоря - ротироваться должен и будет, в условиях прода. 
     Во вторых ну, надо будет либо стандартизировать формат записией в этом логе, это как минимум. Ну: чтобы какой то скрипт(ы), которые из этого лога информацию берут - работали везде, на всех инсталяциях пг-баз, в орг-ции.
     А если надо будет ещё и из sql-скриптов брать информацию из этого лога - ну, тогда задавать ему csv-формат и select, на основе copy-команды psql-я.
-    Какая то боль сплошная, этот пг - как эти костыли, из палок и синей изоленты, можно считать продакшен-реди решением. 
-    `No pain, no gain`
 4.  [pg_ls_waldir](https://pgpedia.info/p/pg_ls_waldir.html) - вообще занятный [список, там же](https://pgpedia.info/version-charts/file-system-functions.html).
 
 1. ```
@@ -137,7 +135,7 @@
    ![10_9](/HomeWorks/Lesson10/10_9.png)
    Т.е.: `tps = 2575` и генерация wal-логов: `~15.5Мб.сек`
    В записях про чекпойнты, в логе кластера, принципиальных изменений нет, кроме, конечно, кол-ва обработанных дарти-буферов и релевантных, к этой количественно возросшей активности, затрат.
-   ![10_9](/HomeWorks/Lesson10/10_9.png)
+   ![10_10](/HomeWorks/Lesson10/10_10.png)
    Из деградации - подросли, на порядок, `longest` значения, времени синкания дарти-блоков в датафайлы.
    ```shell
    grep "LOG:  checkpoint complete:"  $PGLOG | sed -r "s/UTC\W+\[[0-9\-]+\]//" | sed -r "s/ LOG:  checkpoint complete: wrote\W+[0-9]+\W+buffers \([0-9\.]+%\);\W+[0-9]+ WAL file\(s\) added, [0-9]+ removed, [0-9]+ recycled;//" | awk '{printf "%d:%s\n", NR, $0;}' | column -t
@@ -166,3 +164,50 @@
    Повышение продуктивности по tps-ам и кол-ва дарти-блоков связано с значительным уменьшением времени обслуживания базой коммит-ов, при `synchronous_commit='off'`
    Журнальные данные, по закоммичиваемой тр-ции, пишутся, из вал-буфера в текущий вал-лог без выполнения сискола `fcync()`
    Т.е. это запись в файловый кеш ОС-и, а не в вал-лог на диске.
+4. ```
+   Создайте новый кластер с включенной контрольной суммой страниц. 
+   Создайте таблицу. 
+   Вставьте несколько значений. 
+   Выключите кластер. 
+   Измените пару байт в таблице. 
+   Включите кластер и сделайте выборку из таблицы. 
+   Что и почему произошло? 
+   как проигнорировать ошибку и продолжить работу?
+   ```
+   Пересоздал кластер.
+   ```shell
+   pg_createcluster --start --start-conf=auto 14 main -- --no-sync --data-checksums
+   ```
+   ![10_10](/HomeWorks/Lesson10/10_10.png)
+   ```shell
+   select name, setting from pg_settings where name in ('data_checksums','ignore_checksum_failure') order by name;
+   create table testtab(col1 int);
+   begin;
+   insert into testtab(col1) values(1);
+   insert into testtab(col1) values(2);
+   insert into testtab(col1) values(3);
+   commit;
+   select * from testtab;
+   select * from pg_relation_filepath('testtab');
+   ```
+   ![10_13](/HomeWorks/Lesson10/10_13.png)
+   В отдельном screen-экране, в vim-е, поменял пару символов в файле.
+   md5sum-хеш файла поменялся, после правки:
+   ![10_14](/HomeWorks/Lesson10/10_14.png)
+   Запуск пг-кластера, попытка опроса таблицы:
+   ![10_15](/HomeWorks/Lesson10/10_15.png)
+   Ошибка в логе кластера:
+   ```shell
+   2022-08-05 13:38:26.817 UTC [2237] LOG:  database system is ready to accept connections
+   2022-08-05 13:38:57.167 UTC [2258] postgres@postgres WARNING:  page verification failed, calculated checksum 41385 but expected 43263
+   2022-08-05 13:38:57.168 UTC [2258] postgres@postgres ERROR:  invalid page in block 0 of relation base/13760/16384
+   2022-08-05 13:38:57.168 UTC [2258] postgres@postgres STATEMENT:  FETCH FORWARD 100 FROM _psql_cursor
+   2022-08-05 13:38:57.168 UTC [2258] postgres@postgres ERROR:  current transaction is aborted, commands ignored until end of transaction block
+   2022-08-05 13:38:57.168 UTC [2258] postgres@postgres STATEMENT:  CLOSE _psql_cursor
+   ```
+   ```sql
+   alter system set ignore_checksum_failure='on';
+   select pg_reload_conf();
+   ```
+   ![10_15](/HomeWorks/Lesson10/10_15.png)
+   
