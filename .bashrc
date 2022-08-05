@@ -4,6 +4,9 @@ export PGCONF="$PGCONF"
 HBAFILE=$( psql -t -c "show hba_file;" 2>/dev/null | tr -d [:cntrl:] | sed -r "s/^ +//" )
 export HBAFILE="$HBAFILE"
 
+PGDATA=$( psql -t -c "show data_directory;" 2>/dev/null | tr -d [:cntrl:] | sed -r "s/^ +//" )
+export PGDATA="$PGDATA"
+
 CLUSTER=$( psql -c "show cluster_name" -t --csv )
 CLUSTER_VERSION=$( echo -n "$CLUSTER" | cut -f 1 -d "/" )
 CLUSTER_NAME=$( echo -n "$CLUSTER" | cut -f 2 -d "/" )
@@ -20,6 +23,7 @@ PGCONF "$PGCONF"
 HBAFILE "$HBAFILE"
 CLUSTER "$CLUSTER"
 PGLOG "$PGLOG"
+PGDATA "$PGDATA"
 __EOF__
 
 if [ -f "$PGCONF" ]; then
