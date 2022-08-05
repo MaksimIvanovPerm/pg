@@ -9,3 +9,4 @@
     А если надо будет ещё и из sql-скриптов брать информацию из этого лога - ну, тогда задавать ему csv-формат и select, на основе copy-команды psql-я.
     Какая то боль сплошная, этот пг - как эти костыли, из палок и синей изоленты, можно считать продакшен-реди решением. 
     `No pain, no gain`
+4.  [pg_ls_waldir](https://pgpedia.info/p/pg_ls_waldir.html) - вообще занятный [список, там же](https://pgpedia.info/version-charts/file-system-functions.html).
