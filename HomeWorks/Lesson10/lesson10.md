@@ -84,9 +84,6 @@
    На протяжении всего времени теста это write-значение не перекрывало 30секунд - интервал между чекпйонтами.
    Ну. Т.е.: процедуры выполнения чекпонтов - не перекрывались, во времени.
    ```shell
-   postgres@postgresql1:/home/student$ grep "LOG:  checkpoint complete:"  $PGLOG | sed -r "s/UTC\W+\[[0-9\-]+\]//" | sed -r "s/ LOG:  chec
-   kpoint complete: wrote\W+[0-9]+\W+buffers \([0-9\.]+%\);\W+[0-9]+ WAL file\(s\) added, [0-9]+ removed, [0-9]+ recycled;//" | awk '{prin
-   tf "%d:%s\n", NR, $0;}' | more
    postgres@postgresql1:/home/student$ grep "LOG:  checkpoint complete:"  $PGLOG | sed -r "s/UTC\W+\[[0-9\-]+\]//" | sed -r "s/ LOG:  checkpoint complete: wrote\W+[0-9]+\W+buffers \([0-9\.]+%\);\W+[0-9]+ WAL file\(s\) added, [0-9]+ removed, [0-9]+ recycled;//" | awk '{printf "%d:%s\n", NR, $0;}' | column -t
    1:2022-08-05   11:18:54.144  write=26.658s,  sync=0.024s,  total=26.783s;  sync  files=18,  longest=0.010s,  average=0.002s;  distance=48450   kB,  estimate=48450   kB
    2:2022-08-05   11:19:24.220  write=26.913s,  sync=0.016s,  total=27.076s;  sync  files=5,   longest=0.011s,  average=0.004s;  distance=108679  kB,  estimate=108679  kB
@@ -111,4 +108,61 @@
    postgres@postgresql1:/home/student$
    ```
    Все выполнения чекпойнтов делались в 54-ю и 24-ю секунды, т.е.: с шагом в 30сек, как и задано по конфигурации.
-   Лог кластера: 
+3. ```
+   Сравните tps в синхронном/асинхронном режиме утилитой pgbench. Объясните полученный результат.
+   ```
+   Ну. Понял так что речь идёт о `synchronous_commit='off'`
+   Включил асинхронный режим выполнения коммитов:
+   ```sql
+   [local]:5432 #postgres@postgres > alter system set synchronous_commit='off';
+   ALTER SYSTEM
+   [local]:5432 #postgres@postgres > select pg_reload_conf();
+    pg_reload_conf
+   ----------------
+    t
+   (1 row)
+   
+   [local]:5432 #postgres@postgres > show synchronous_commit;
+    synchronous_commit
+   --------------------
+    off
+   (1 row)
+   
+   [local]:5432 #postgres@postgres > \! date
+   Fri 05 Aug 2022 12:22:21 PM UTC
+   ```
+   Запустил выполнение теста:
+   ![10_7](/HomeWorks/Lesson10/10_7.png)
+   ![10_8](/HomeWorks/Lesson10/10_8.png)
+   ![10_9](/HomeWorks/Lesson10/10_9.png)
+   Т.е.: `tps = 2575` и генерация wal-логов: `~15.5Мб.сек`
+   В записях про чекпойнты, в логе кластера, принципиальных изменений нет, кроме, конечно, кол-ва обработанных дарти-буферов и релевантных, к этой количественно возросшей активности, затрат.
+   ![10_9](/HomeWorks/Lesson10/10_9.png)
+   Из деградации - подросли, на порядок, `longest` значения, времени синкания дарти-блоков в датафайлы.
+   ```shell
+   grep "LOG:  checkpoint complete:"  $PGLOG | sed -r "s/UTC\W+\[[0-9\-]+\]//" | sed -r "s/ LOG:  checkpoint complete: wrote\W+[0-9]+\W+buffers \([0-9\.]+%\);\W+[0-9]+ WAL file\(s\) added, [0-9]+ removed, [0-9]+ recycled;//" | awk '{printf "%d:%s\n", NR, $0;}' | column -t
+   21:2022-08-05  12:25:27.124  write=26.094s,  sync=0.013s,  total=26.192s;  sync  files=14,  longest=0.006s,  average=0.001s;  distance=222089  kB,  estimate=222089  kB
+   22:2022-08-05  12:25:57.420  write=27.126s,  sync=0.080s,  total=27.294s;  sync  files=5,   longest=0.061s,  average=0.016s;  distance=236484  kB,  estimate=236484  kB
+   23:2022-08-05  12:26:27.163  write=26.610s,  sync=0.011s,  total=26.743s;  sync  files=6,   longest=0.005s,  average=0.002s;  distance=227452  kB,  estimate=235581  kB
+   24:2022-08-05  12:26:57.143  write=26.896s,  sync=0.012s,  total=26.978s;  sync  files=6,   longest=0.005s,  average=0.002s;  distance=205505  kB,  estimate=232573  kB
+   25:2022-08-05  12:27:27.254  write=26.920s,  sync=0.011s,  total=27.108s;  sync  files=6,   longest=0.006s,  average=0.002s;  distance=233496  kB,  estimate=233496  kB
+   26:2022-08-05  12:27:57.218  write=26.768s,  sync=0.022s,  total=26.962s;  sync  files=5,   longest=0.010s,  average=0.005s;  distance=223820  kB,  estimate=232529  kB
+   27:2022-08-05  12:28:27.118  write=26.789s,  sync=0.010s,  total=26.898s;  sync  files=6,   longest=0.006s,  average=0.002s;  distance=241305  kB,  estimate=241305  kB
+   28:2022-08-05  12:28:57.142  write=26.892s,  sync=0.017s,  total=27.022s;  sync  files=6,   longest=0.005s,  average=0.003s;  distance=228278  kB,  estimate=240002  kB
+   29:2022-08-05  12:29:27.124  write=26.863s,  sync=0.010s,  total=26.980s;  sync  files=6,   longest=0.006s,  average=0.002s;  distance=237778  kB,  estimate=239780  kB
+   30:2022-08-05  12:29:57.114  write=26.877s,  sync=0.011s,  total=26.988s;  sync  files=5,   longest=0.006s,  average=0.003s;  distance=234775  kB,  estimate=239279  kB
+   31:2022-08-05  12:30:27.312  write=26.917s,  sync=0.020s,  total=27.196s;  sync  files=5,   longest=0.014s,  average=0.004s;  distance=236627  kB,  estimate=239014  kB
+   32:2022-08-05  12:30:57.187  write=26.750s,  sync=0.031s,  total=26.875s;  sync  files=6,   longest=0.022s,  average=0.006s;  distance=219193  kB,  estimate=237032  kB
+   33:2022-08-05  12:31:27.124  write=26.812s,  sync=0.035s,  total=26.936s;  sync  files=5,   longest=0.033s,  average=0.007s;  distance=229826  kB,  estimate=236311  kB
+   34:2022-08-05  12:31:57.153  write=26.900s,  sync=0.034s,  total=27.029s;  sync  files=6,   longest=0.027s,  average=0.006s;  distance=205569  kB,  estimate=233237  kB
+   35:2022-08-05  12:32:27.253  write=26.906s,  sync=0.022s,  total=27.098s;  sync  files=6,   longest=0.014s,  average=0.004s;  distance=226600  kB,  estimate=232573  kB
+   36:2022-08-05  12:32:57.159  write=26.768s,  sync=0.033s,  total=26.903s;  sync  files=6,   longest=0.020s,  average=0.006s;  distance=215498  kB,  estimate=230866  kB
+   37:2022-08-05  12:33:27.214  write=26.848s,  sync=0.028s,  total=27.052s;  sync  files=6,   longest=0.023s,  average=0.005s;  distance=230056  kB,  estimate=230785  kB
+   38:2022-08-05  12:33:57.162  write=26.813s,  sync=0.037s,  total=26.946s;  sync  files=7,   longest=0.026s,  average=0.006s;  distance=234849  kB,  estimate=234849  kB
+   39:2022-08-05  12:34:27.186  write=26.869s,  sync=0.023s,  total=27.022s;  sync  files=5,   longest=0.018s,  average=0.005s;  distance=206174  kB,  estimate=231981  kB
+   40:2022-08-05  12:34:57.115  write=26.867s,  sync=0.009s,  total=26.927s;  sync  files=6,   longest=0.004s,  average=0.002s;  distance=227589  kB,  estimate=231542  kB
+   ```
+   Т.е. в работе самого чекпойнта - ничего не поменялось, кроме объёма работы.
+   Повышение продуктивности по tps-ам и кол-ва дарти-блоков связано с значительным уменьшением времени обслуживания базой коммит-ов, при `synchronous_commit='off'`
+   Журнальные данные, по закоммичиваемой тр-ции, пишутся, из вал-буфера в текущий вал-лог без выполнения сискола `fcync()`
+   Т.е. это запись в файловый кеш ОС-и, а не в вал-лог на диске.
