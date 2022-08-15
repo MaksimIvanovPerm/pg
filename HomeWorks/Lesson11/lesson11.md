@@ -5,6 +5,8 @@
 3. [референс]([https://www.postgresql.org/docs/current/kernel-resources.html](https://www.kernel.org/doc/html/latest/admin-guide/sysctl/index.html)) по параметрам линукс-ядра.
 4. [прикольная справка по параметрам конф-ции пг](https://postgresqlco.nf/doc/ru/param/effective_cache_size/)
 5. Отличная вещь для пг, прямо таки - awr-like approach [pg_profiler](https://github.com/zubkov-andrei/pg_profile)
+6. [Шикарная статья](https://habr.com/ru/company/postgrespro/blog/466199/), про блокировки в памяти, всё как в оракле. В общем то - почему должно быть по другому, механизмы, среда, цели работы - те же.
+   Вообще [весь набор статей](https://habr.com/ru/company/postgrespro/blog/458186/) от пгпро, на хабре - отличный экскурс в архитектуру и механику работы пг.
 
 Заметки по установка `pg_prfiler`:
 1. ```shell
@@ -56,4 +58,31 @@
    ```shell
    */15 * *   *   *     [ -f "/var/lib/postgresql/pg_profile/make_snap.sh" ] && /var/lib/postgresql/pg_profile/make_snap.sh 1>/dev/null 2>&1
    ```
-   [make_snap.sh]()
+   [make_snap.sh](/HomeWorks/Lesson11/make_snap.sh)
+   
+Заметки по `sysbench`:
+[https://github.com/akopytov/sysbench](https://github.com/akopytov/sysbench)
+Но, в убунту, сильно проще, если устраивает версия из стандартного репозитория:
+```shell
+apt install sysbench
+sysbench --version=on # sysbench 1.0.18
+```
+Доустановка lua-надстройки, дающей именно TPC-C-тест:
+```shell
+mkdir ~/tpcc
+cd ~/tpcc
+git clone https://github.com/Percona-Lab/sysbench-tpcc
+cd ./sysbench-tpcc/
+psql -c "ALTER USER postgres PASSWORD 'qazxsw123';"
+```
+Подсмотрел [тут](https://www.percona.com/blog/2018/06/15/tuning-postgresql-for-sysbench-tpcc/), как и что дальше.
+Создание табличной модели под tpc-c-тест, выполнение теста, удаление табличной модели:
+```shell
+./tpcc.lua --pgsql-host=localhost --pgsql-user=postgres --pgsql-db=postgres --pgsql-password="qazxsw123" --time=60 --threads=2 --report-interval=10 --tables=10 --scale=2 --use_fk=0  --trx_level=RC --db-driver=pgsql prepare
+# psql -U postgres -d postgres -c "select table_name, pg_relation_size(quote_ident(table_name)) from information_schema.tables where table_schema = 'public' order by 2 desc;"
+
+./tpcc.lua --pgsql-host=localhost --pgsql-user=postgres --pgsql-db=postgres --pgsql-password="qazxsw123" --time=300 --threads=8 --report-interval=60 --tables=10 --scale=2 --use_fk=0  --trx_level=RC --db-driver=pgsql run | tee -a  /var/lib/postgresql/tpcc/sysbench-tpcc/result.txt
+
+./tpcc.lua --pgsql-host=localhost --pgsql-user=postgres --pgsql-db=postgres --pgsql-password="qazxsw123" --threads=1 --tables=10 --db-driver=pgsql cleanup
+```
+
