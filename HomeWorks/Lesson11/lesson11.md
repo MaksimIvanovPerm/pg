@@ -111,6 +111,88 @@ psql -c "ALTER USER postgres PASSWORD 'qazxsw123';"
 
 Подготовка сервера.
 Сервер сделал таким: 
+
 ![11_1](/HomeWorks/Lesson11/11_1.png)
+
+После увеличения ресурсов сервера решил что будет интересно посмотреть - как оно работает в дефаултах и без подстройки ОС-и под пг.
+А потом, после конфигурации больших страниц, ОС-и, подбора параметров - сравнить.
+Репорт от tppc.lua-скрипта: [result.txt](/HomeWorks/Lesson11/result.txt)
+pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
+
+Затем:
+1. Настройка и применение `sysctl.conf`:
+   ```shell
+   cat < __EOF__ >> /etc/sysctl.conf
+   kernel.randomize_va_space=0
+   fs.aio-max-nr=1048576
+   fs.file-max=6815744
+   vm.nr_hugepages=1280 #2.5Gb
+   kernel.shmmax=2818572288
+   kernel.shmmni=4096
+   # getconf -a | grep "PAGE_SIZE"
+   # (shmmax/PAGE_SIZE)
+   kernel.shmall=688128
+   vm.swappiness = 5
+   __EOF__
+   
+   sysctl -p /etc/sysctl.conf
+   ```
+   Отключить инфернальное зло - THP, в убунту просто:
+   ```shell
+   apt install libhugetlbfs-bin
+   id postgres | egrep -o "gid=[0-9]+\(postgres\)"
+   hugeadm --set-shm-group=116
+   echo "vm.hugetlb_shm_group=116" >> "/etc/sysctl.conf"
+   hugeadm --thp-never
+   ```
+   Also и на всякий случай прописал в конфиг груб-загрузчика `transparent_hugepages=never`
+   Рестартанул вм.
+   Более чем уверен что, по хорошему то - надо было бы ещё поварьировать посмотреть на эффект от разных стратегий управления грязными страницами vm-менеджером.
+   Also, в проде, с настоящей железкой, наверняка надо поиграться с io-шедулером.
+   Но, это уже выполнение действий от рута.
+   А мне яндекс-вм не даёт, от postgres-а, делать sudo-команды, поправить `/etc/sudoers` - что то не помню: то ли не даёт, то ли что, точно помню что пробовал.
+   Ну и переписывать код, наработанный в ДЗ к 8-й теме, под его выполнение из под рут-а: совсем лениво.
+2. ОС-лимиты:
+   ```shell
+   cat << __EOF__ > /etc/security/limits.conf
+   # Число открытых файлов
+   postgres           soft    nofile          unlimited
+   postgres           hard    nofile          unlimited
+   # Число процессов Oracle
+   postgres           soft    nproc           unlimited
+   postgres           hard    nproc           unlimited
+   # ОЗУ
+   postgres           soft    memlock         unlimited
+   postgres           hard    memlock         unlimited
+   # Размер core-файлов в килобайтах
+   postgres           soft    core            unlimited
+   postgres           hard    core            unlimited
+   # stack size
+   postgres           soft    stack           unlimited
+   postgres           hard    stack           unlimited
+   __EOF__
+   ```
+3. Решил варьировать такие и в таких диапазонах, пг-параметры:
+   
+   |autovacuum_analyze_scale_factor|[0.01, 0.9]| float|
+   |autovacuum_analyze_threshold|[50, 5000]| int|
+   |autovacuum_max_workers|[1,4]| int|
+   |autovacuum_naptime|[1,180]| int|
+   |autovacuum_vacuum_scale_factor|[0.01, 0.9]| float|
+   |autovacuum_vacuum_threshold|[50, 5000]| int|
+   |maintenance_work_mem|[4096, 131072]| int (4-128Mb)|
+   |shared_buffers|[16384, 163840]| int (128-1280Mb)|
+   |wal_buffers|[2048, 20480]| int (16-160Mb)|
+   |work_mem|[64, 40960]| int (40Мб; 400Мб)|
+   |wal_compression|[1, 4]| int (<=2: off, >2: on)|
+   |bgwriter_delay|[10, 10000]| int|
+   |bgwriter_lru_maxpages|[100, 100000]| int|
+   |checkpoint_completion_target|[0.1, 0.9]| float|
+   |checkpoint_timeout|[30, 600]| int|
+   |commit_delay|[0, 100000]| int|
+   |commit_siblings|[0, 10]| int|
+   |effective_io_concurrency|[1, 10]| int|
+
+
 
 
