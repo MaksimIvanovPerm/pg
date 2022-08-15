@@ -197,7 +197,26 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
 Пос-ть действий, для выполнения tpcc-теста, такая:
 1. Генерируется и выставляется (чем и как - позже) значения для параметров.
 2. кластер перезапускается, по `pg_ctlcuster`, именно - по `stop|start`, чтобы прямо всё-всё "по честному" - сбросило кеши, пересоздало кеши, позакрывало сессии-транзакции.
-3. на все таблицы tpcc-табличной модели выполняется вакуум. Тут покажу код:
+   Здесь, в рантайме, немедленно возникла почти взрослая проблема: а фигатам, достаточно нагруженная/большая бд, сразу же остановится.
+   Порешал так:
+   ```shell
+   pg_ctlcluster 14 main stop
+   sleep 2
+   pg_ctlcluster 14 main start
+   sleep 2
+   pg_isready -t 1 -q -h "$PG_HOST" -p "$PG_PORT"
+   rc="$?"
+   while [ "$rc" -ne "0" ]; do
+         output "wait for cluster shutdowning"
+         sleep 5
+         pg_ctlcluster 14 main start
+         sleep 1
+         pg_isready -t 1 -q -h "$PG_HOST" -p "$PG_PORT"
+         rc="$?"
+   done
+   output "cluster restarted"
+   ```
+4. на все таблицы tpcc-табличной модели выполняется вакуум. Тут покажу код:
    ```shell
    function vacuumit(){
    local v_tabname="$1"
