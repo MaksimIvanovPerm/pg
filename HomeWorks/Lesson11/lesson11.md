@@ -173,8 +173,9 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
    __EOF__
    ```
 3. Решил варьировать такие и в таких диапазонах, пг-параметры:
-   
-   |autovacuum_analyze_scale_factor|[0.01, 0.9]| float|
+   | parameter | range | note |
+   | --------- | ----- | ---- |
+   | autovacuum_analyze_scale_factor | [0.01, 0.9] | float |
    |autovacuum_analyze_threshold|[50, 5000]| int|
    |autovacuum_max_workers|[1,4]| int|
    |autovacuum_naptime|[1,180]| int|
@@ -192,7 +193,6 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
    |commit_delay|[0, 100000]| int|
    |commit_siblings|[0, 10]| int|
    |effective_io_concurrency|[1, 10]| int|
-
 
 
 
