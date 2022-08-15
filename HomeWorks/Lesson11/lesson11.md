@@ -194,5 +194,31 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
    |commit_siblings|[0, 10]| int|
    |effective_io_concurrency|[1, 10]| int|
 
-
+Пос-ть действий, для выполнения tpcc-теста, такая:
+1. Генерируется и выставляется (чем и как - позже) значения для параметров.
+2. кластер перезапускается, по `pg_ctlcuster`, именно - по `stop|start`, чтобы прямо всё-всё "по честному" - сбросило кеши, пересоздало кеши, позакрывало сессии-транзакции.
+3. на все таблицы tpcc-табличной модели выполняется вакуум. Тут покажу код:
+   ```shell
+   function vacuumit(){
+   local v_tabname="$1"
+   
+   v_tabname=$( echo -n "$v_tabname" | tr -d [:space:] )
+   if [ ! -z "$v_tabname" ]; then
+      v_cmd="vacuum ${v_tabname};"
+      /usr/bin/psql -U postgres -d postgres -q -c "${v_cmd}"
+   fi
+   }
+   export -f vacuumit
+   ...
+   output "cluster restarted"
+   output "vacuuming"
+   cat /tmp/tablist.txt | awk -F "|" '{ if ( $2 > 0 ) {printf "%s\n", $1;}}' | sed -r "s/^\W+//" | xargs -n 1 -P 4 -I {} -t bash -c vacuumit\ \{\} | tee -a    "$LOGFILE"
+   output "vacuuming done"
+   ```
+   Поскольку набор таблиц - статичен, просто сохранил их имена в файл и всё.
+   Работает, параллелит, довольно быстро обрабатывает:
+   ![psaxf](/HomeWorks/Lesson11/pslist.png)
+   ![log](/HomeWorks/Lesson11/log.png)
+5. выполняется tpcc-тест, с одними и тем же настройками (команда выше). 
+   В таблицы бд сохраняются: данные теста, метрика теста, пг-параметры данного теста.
 
