@@ -49,5 +49,11 @@
    v_desc="Report for ${v_bsample}_${v_esample} samples"
    psql -Aqtc "SELECT get_report(${v_bsample}, ${v_esample}, '${v_desc}');" -o report_${v_bsample}_${v_esample}.html
    ```
+   Генерятся, почему то, принципиально только в html-формате.
+   Примеры отчётов - будут ниже.
    Фреймворка для регулярного выполнения задач в пг: нет.
    Поэтому - кронтабом, заготовка: 
+   ```shell
+   */15 * *   *   *     [ -f "/var/lib/postgresql/pg_profile/make_snap.sh" ] && /var/lib/postgresql/pg_profile/make_snap.sh 1>/dev/null 2>&1
+   ```
+   [make_snap.sh]()
