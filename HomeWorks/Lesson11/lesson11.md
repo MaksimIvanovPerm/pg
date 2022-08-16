@@ -391,7 +391,7 @@ __EOF__
 ![rw1](/HomeWorks/Lesson11/retry_worsttest_1.png)
 ![rw2](/HomeWorks/Lesson11/retry_worsttest_2.png)
 ![rw3](/HomeWorks/Lesson11/retry_worsttest_3.png)
-pg_profiler-отчёт: [report_45_46.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_45_46_47_48.html)
+pg_profiler-отчёт: [report_45_46.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_45_46.html)
 Этот тест, здесь и далее, будем называть плохой тест.
 
 Т.е. работа автовакуума подтвержается, как главный фактор, влияющий на метрику качества теста.
