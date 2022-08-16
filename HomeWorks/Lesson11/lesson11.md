@@ -125,8 +125,9 @@ psql -c "ALTER USER postgres PASSWORD 'qazxsw123';"
 
 После увеличения ресурсов сервера решил что будет интересно посмотреть - как оно работает в дефаултах и без подстройки ОС-и под пг.
 А потом, после конфигурации больших страниц, ОС-и, подбора параметров - сравнить.
+
 Репорт от tppc.lua-скрипта: [result.txt](/HomeWorks/Lesson11/result.txt)
-pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
+pg_profiler-отчёт: [report_4_5.html](https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_4_5.html)
 
 Затем:
 1. Настройка и применение `sysctl.conf`:
