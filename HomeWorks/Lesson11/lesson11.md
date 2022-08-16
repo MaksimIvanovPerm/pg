@@ -127,7 +127,7 @@ psql -c "ALTER USER postgres PASSWORD 'qazxsw123';"
 А потом, после конфигурации больших страниц, ОС-и, подбора параметров - сравнить.
 
 Репорт от tppc.lua-скрипта: [result.txt](/HomeWorks/Lesson11/result.txt)
-pg_profiler-отчёт: [report_4_5.html](https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_4_5.html)
+pg_profiler-отчёт: [report_4_5.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_4_5.html)
 
 Затем:
 1. Настройка и применение `sysctl.conf`:
