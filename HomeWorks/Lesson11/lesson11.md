@@ -346,7 +346,7 @@ fi
 ![pic1](/HomeWorks/Lesson11/retry_besttest_1.png)
 ![pic2](/HomeWorks/Lesson11/retry_besttest_2.png)
 ![pic3](/HomeWorks/Lesson11/retry_besttest_3.png)
-pg_profiler-отчёт: [report_47_48.html](/HomeWorks/Lesson11/report_47_48.html)
+pg_profiler-отчёт: [report_47_48.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_47_48.html)
 
 Т.е. довольно надолго откладывается анализ и обработка таблиц.
 Автовакуум много и долго спит, у него много памяти для работы.
@@ -391,7 +391,7 @@ __EOF__
 ![rw1](/HomeWorks/Lesson11/retry_worsttest_1.png)
 ![rw2](/HomeWorks/Lesson11/retry_worsttest_2.png)
 ![rw3](/HomeWorks/Lesson11/retry_worsttest_3.png)
-pg_profiler-отчёт: [report_45_46.html](/HomeWorks/Lesson11/report_45_46.html)
+pg_profiler-отчёт: [report_45_46.html]([https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_45_46.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_45_46_47_48.html))
 Этот тест, здесь и далее, будем называть плохой тест.
 
 Т.е. работа автовакуума подтвержается, как главный фактор, влияющий на метрику качества теста.
@@ -400,12 +400,12 @@ pg_profiler-отчёт: [report_45_46.html](/HomeWorks/Lesson11/report_45_46.htm
 
 diff-отчёты.
 1. Между хорошим тестом и tpcc-тестом в дефолтных настройках пг-кластера, сразу после его установки и до отстройки ОС-и: [report_diff_4_5_47_48.html](/HomeWorks/Lesson11/report_diff_4_5_47_48.html)
-2. Между хорошим и плохим tpcc-тестами: [report_diff_45_46_47_48.html](/HomeWorks/Lesson11/report_diff_45_46_47_48.html)
+2. Между хорошим и плохим tpcc-тестами: [report_diff_45_46_47_48.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_45_46_47_48.html)
 
 Из спортивного интереса попытался, к значениям параметров дающих лучшее значение метрики.
 Выставил `fsync=off, synchronous_commit=off`, запустил тест.
 И тут YC остановил мне виртуалку, она - прерываемая у меня.
-Печалька.
+Кластер - сломался. Печалька.
 На экране остались первые два замера:
 ```shell
 [ 60s ] thds: 8 tps: 197.83 qps: 5600.76 (r/w/o: 2554.13/2650.57/396.06) lat (ms,95%): 219.36 err/s 0.73 reconn/s: 0.00
