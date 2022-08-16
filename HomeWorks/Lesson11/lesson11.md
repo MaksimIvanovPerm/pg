@@ -402,8 +402,8 @@ diff-отчёты.
 1. Между хорошим тестом и tpcc-тестом в дефолтных настройках пг-кластера, сразу после его установки и до отстройки ОС-и: [report_diff_4_5_47_48.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_4_5_47_48.html)
 2. Между хорошим и плохим tpcc-тестами: [report_diff_45_46_47_48.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_45_46_47_48.html)
 
-Из спортивного интереса попытался, к значениям параметров дающих лучшее значение метрики.
-Выставил `fsync=off, synchronous_commit=off`, запустил тест.
+Из спортивного интереса попытался, к значениям параметров дающих лучшее значение метрики добавить `fsync=off, synchronous_commit=off`;
+И посмотреть какую метрику покажет тест в такой конфигурации.
 И тут YC остановил мне виртуалку, она - прерываемая у меня.
 Кластер - сломался. Печалька.
 На экране остались первые два замера:
