@@ -59,6 +59,15 @@
    */15 * *   *   *     [ -f "/var/lib/postgresql/pg_profile/make_snap.sh" ] && /var/lib/postgresql/pg_profile/make_snap.sh 1>/dev/null 2>&1
    ```
    [make_snap.sh](/HomeWorks/Lesson11/make_snap.sh)
+4. P.S. только в самом финале работ [углядел](https://github.com/zubkov-andrei/pg_profile/blob/master/doc/pg_profile.md) что надо делать
+   ```sql
+   track_activities = on
+   track_counts = on
+   track_io_timing = on
+   track_wal_io_timing = on      # Since Postgres 14
+   track_functions = all/pl
+   ```
+   весьма досадно, что пропустил такой важный момент(((((
    
 Заметки по `sysbench`:
 [https://github.com/akopytov/sysbench](https://github.com/akopytov/sysbench)
@@ -147,11 +156,12 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
    ```
    Also и на всякий случай прописал в конфиг груб-загрузчика `transparent_hugepages=never`
    Рестартанул вм.
-   Более чем уверен что, по хорошему то - надо было бы ещё поварьировать посмотреть на эффект от разных стратегий управления грязными страницами vm-менеджером.
-   Also, в проде, с настоящей железкой, наверняка надо поиграться с io-шедулером.
-   Но, это уже выполнение действий от рута.
+   Also, в проде, с настоящей железкой, чем уверен что, по хорошему то - надо было бы ещё поварьировать посмотреть на эффект от разных стратегий управления грязными страницами vm-менеджером, посмотреть на эффект от выставления разных io-шедулеров.
+   Но, два момента. 
+   Это уже выполнение действий от рута.
    А мне яндекс-вм не даёт, от postgres-а, делать sudo-команды, поправить `/etc/sudoers` - что то не помню: то ли не даёт, то ли что, точно помню что пробовал.
    Ну и переписывать код, наработанный в ДЗ к 8-й теме, под его выполнение из под рут-а: совсем лениво.
+   Второе - всей чуйкой чую что YC - поредоставляет зашейпированные ресурсы, эксплуатационные качества которых будут значительно отличатся от качеств настоящей железки.
 2. ОС-лимиты:
    ```shell
    cat << __EOF__ > /etc/security/limits.conf
@@ -201,6 +211,11 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
    Видно только по изменению значений каунтеров в выоде `cat /proc/meminfo | grep -i hugepages`
    Неудобненько. 
    Оракл - подробно пишет: сколько занял, каких страниц занял, сразу видно - хорошо оценили, наконфигурили кол-во больших страниц, или нет.
+   
+   Дальше: я умышенно не стал, на этом этапе, включать, в набор варьируемых параметров пг, параметры `fsync, synchronous_commit`;
+   Совершенно понятно - что эффект будет, большой.
+   И ровно поэтому оптимизационный алгоритм: это заметит и конечно же начнёт пихать во все рассматриваемые варианты хорошие значения этих параметров.
+   Импакт от остальных параметров, если он и будет какой то - будет просто не видим, на фоне импакта от `fsync, synchronous_commit`
 
 Пос-ть действий, для выполнения tpcc-теста, такая:
 1. Генерируется и выставляется (чем и как - позже) значения для параметров.
@@ -248,4 +263,136 @@ pg_profiler-отчёт: [report_4_5.html](/HomeWorks/Lesson11/report_4_5.html)
    ![log](/HomeWorks/Lesson11/log.png)
 5. выполняется tpcc-тест, с одними и тем же настройками (команда выше). 
    В таблицы бд сохраняются: данные теста, метрика теста, пг-параметры данного теста.
+
+Результаты
+Ну. Прежде всего сджойнил, по номеру тестов, друг с другом, массив данных по значениям настрочных параметров, в тестах и метрик тестов.
+Значения параметров, при этом - развернул в строку.
+В cran-r зафиттил линейную модель - приближающую значения метрик теста, от значений параметров в тесте.
+Построил линейную модель, для метрики теста, от значений параметров.
+Если объясняемая переменная (в данном случае - метрика текста) действительно значимо объясняется, как факторами, значениями настрочных параметров, модель - должна быть похожа на динамику реальных значений.
+С этим - плохо:
+![metrics](/HomeWorks/Lesson11/11_2.png)
+
+Т.е.: полная линейная модель, куда предикторами входят значения всех настроечных параметров пг, варьируемых от теста к тесту: едва объясняет обший рост значений метрики.
+Т.е. да - что то, из того что я менял, в виде значений параметров пг, от теста к тесту - как то влияет.
+Но на самом деле значимый фактор(ы), я не трогал.
+Интересны значения коэфф-в линейной модели, практически значимым - является только коэф-т при `autovacuum_vacuum_scale_factor
+`
+Об этом - ниже чуть чуть.
+Провёл `attribute-importance` анализ, т.е. выявил - какой предикат и как (в количественном смысле) влияет на значение метрики.
+Получается так что это, по убыванию импакта:
+```
+autovacuum_vacuum_scale_factor
+maintenance_work_mem
+checkpoint_completion_target
+shared_buffers
+```
+![attrimp](/HomeWorks/Lesson11/11_3.png)
+Причём очень похоже что, именно параметр `autovacuum_vacuum_scale_factor`, практически в единственном числе, является наиболее значимым.
+В принципе это же видно и из коэффициэнтов, которые дала линейная модель.
+В общем - толстый намёк на автовакуум, что, среди того что я варьировал - это наиболее значимый фактор.
+Все данные, графики - вывел в эксельку:
+
+Намёк дан в виде `autovacuum_vacuum_scale_factor`
+Т.е. это только - порог срабатывания для автовакуума, ничего не говорится про то как именно работа/не работа автовакуума влияет.
+Ну.
+Предположу что более щадящими являются условия при которых автовакуум реже анализирует/обрабатывает таблицы.
+А если обрабатывает, то желательно чтобы побыстрее.
+Проверка, взял значения настроечных параметров характерные для средних значений метрики.
+Выкрутил параметры относящиеся к автовакууму, в подходящие, на мой взгляд и гипотезу, значения:
+```shell
+source /var/lib/postgresql/lesson8/library
+$PSQL -v ON_ERROR_STOP=1 << __EOF__ 1>/dev/null
+alter system set autovacuum_max_workers=2;
+alter system set autovacuum_naptime=180;
+alter system set checkpoint_timeout=586;
+alter system set bgwriter_delay=5696;
+alter system set bgwriter_lru_maxpages=93033;
+alter system set checkpoint_completion_target=0.9;
+alter system set commit_siblings=4;
+alter system set maintenance_work_mem=131072;
+alter system set autovacuum_analyze_scale_factor=0.7;
+alter system set autovacuum_vacuum_scale_factor=0.7;
+alter system set commit_delay=44889;
+alter system set shared_buffers=87811;
+alter system set work_mem=20261;
+alter system set autovacuum_vacuum_threshold=4096;
+alter system set effective_io_concurrency=3;
+alter system set wal_buffers=8211;
+alter system set wal_compression=off;
+alter system set autovacuum_analyze_threshold=4096;
+__EOF__
+if [ "$?" -eq "0" ]; then
+   restart_cluster
+   psql -c "select name, setting from pg_catalog.pg_settings where name in ('autovacuum_analyze_scale_factor','autovacuum_analyze_threshold','autovacuum_max_workers','autovacuum_naptime','autovacuum_vacuum_scale_factor','autovacuum_vacuum_threshold','maintenance_work_mem','shared_buffers','wal_buffers','work_mem','wal_compression','bgwriter_delay','bgwriter_lru_maxpages','checkpoint_completion_target','checkpoint_timeout','commit_delay','commit_siblings','effective_io_concurrency') order by name;"
+   psql -t -c "select table_name, pg_relation_size(quote_ident(table_name)) from information_schema.tables where table_schema = 'public' order by 2 desc;" > /tmp/tablist.txt
+   vacuuming 1>/dev/null
+   psql -c 'SELECT take_sample()'
+   ./tpcc.lua --pgsql-host=localhost --pgsql-user=postgres --pgsql-db=postgres --pgsql-password="qazxsw123" --time=920 --threads=8 --report-interval=60 --tables=10 --scale=2 --use_fk=0  --trx_level=RC --db-driver=pgsql run >  /var/lib/postgresql/tpcc/sysbench-tpcc/result.txt
+   psql -c 'SELECT take_sample()'
+   cat /var/lib/postgresql/tpcc/sysbench-tpcc/result.txt | grep "thds: 8 tps: "
+else
+   echo "Error while executing alter system statements"
+fi
+```
+Скриншоты:
+![pic1](/HomeWorks/Lesson11/retry_besttest_1.png)
+![pic2](/HomeWorks/Lesson11/retry_besttest_2.png)
+![pic3](/HomeWorks/Lesson11/retry_besttest_3.png)
+pg_profiler-отчёт: [report_47_48.html](/HomeWorks/Lesson11/report_47_48.html)
+
+Т.е. довольно надолго откладывается анализ и обработка таблиц.
+Автовакуум много и долго спит, у него много памяти для работы.
+
+Позапускал такое ещё пару раз: стабильно такая картина.
+Т.е., уверенно, не те 30tps-ов, которые были в дефолтных настройках.
+Ну, т.е., не те 60+ tps, максимальные, которые достигались, в принципе.
+Видимо, какая то добавка к продуктивности - таки есть в значениях других параметров.
+Т.е. если выкрутить на максимальные значения размеры `work_mem, shared_buffers, wal_buffers`: получатся те самые стабильные 60+ tps, на последних 2/3 времени теста;
+Этот тест, здесь и далее, будем называть хороший тест.
+
+Получается так что, в условиях данного tpcc-теста, его типовой продолжительности, профиля нагрузки который он даёт, значимым, снова, оказывается процесс работы автовакуума.
+То как часто он начинает обрабатывать таблицы, `autovacuum_vacuum_scale_factor` влияет именно на это.
+А если обрабатывает - сколько у него есть ресурсов для этой обработки (ну т.е.: как быстро обрабатывает).
+Выставил, исходя из этих размышлений, при прочих равных c предудущим тестом, такое:
+```shell
+$PSQL -v ON_ERROR_STOP=1 << __EOF__ 1>/dev/null
+alter system set autovacuum_max_workers=2;
+alter system set autovacuum_naptime=10;
+alter system set checkpoint_timeout=586;
+alter system set bgwriter_delay=5696;
+alter system set bgwriter_lru_maxpages=93033;
+alter system set checkpoint_completion_target=0.9;
+alter system set commit_siblings=4;
+alter system set maintenance_work_mem=4096;
+alter system set autovacuum_analyze_scale_factor=0.01;
+alter system set autovacuum_vacuum_scale_factor=0.01;
+alter system set commit_delay=44889;
+alter system set shared_buffers=87811;
+alter system set work_mem=20261;
+alter system set autovacuum_vacuum_threshold=50;
+alter system set effective_io_concurrency=3;
+alter system set wal_buffers=8211;
+alter system set wal_compression=off;
+alter system set autovacuum_analyze_threshold=50;
+__EOF__
+```
+Т.е. целеаправленно, при прочих равных пг-настройках с хорошим тестом, сделал так чтобы автовакуум - сработывал, при своём запуске, практически для любой таблицы, в которой есть более 1% мёртвых туплов.
+И задал, относительно хорошего теста, малый период засыпания автовакуума.
+И зарезал, до минимума, кол-во памяти, доступное для деятельности автовакуума.
+И получил замечательную деградацию по tps-ам:
+![rw1](/HomeWorks/Lesson11/retry_worsttest_1.png)
+![rw2](/HomeWorks/Lesson11/retry_worsttest_2.png)
+![rw3](/HomeWorks/Lesson11/retry_worsttest_3.png)
+pg_profiler-отчёт: [report_45_46.html](/HomeWorks/Lesson11/report_45_46.html)
+Этот тест, здесь и далее, будем называть плохой тест.
+
+Т.е. работа автовакуума подтвержается, как главный фактор, влияющий на метрику качества теста.
+
+
+
+diff-отчёты.
+1. Между хорошим тестом и tpcc-тестом в дефолтных настройках пг-кластера, сразу после его установки и до отстройки ОС-и: [report_diff_4_5_47_48.html](/HomeWorks/Lesson11/report_diff_4_5_47_48.html)
+2. Между хорошим и плохим tpcc-тестами: [report_diff_45_46_47_48.html](/HomeWorks/Lesson11/report_diff_45_46_47_48.html)
+
 
