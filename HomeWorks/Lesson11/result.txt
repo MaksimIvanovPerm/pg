@@ -18,57 +18,6 @@ DB SCHEMA public
 DB SCHEMA public
 Threads started!
 
-[ 60s ] thds: 8 tps: 14.70 qps: 418.56 (r/w/o: 190.21/198.56/29.80) lat (ms,95%): 1973.38 err/s 0.05 reconn/s: 0.00
-[ 120s ] thds: 8 tps: 7.68 qps: 226.29 (r/w/o: 103.62/107.30/15.37) lat (ms,95%): 2362.72 err/s 0.05 reconn/s: 0.00
-[ 180s ] thds: 8 tps: 8.62 qps: 251.85 (r/w/o: 115.73/118.88/17.23) lat (ms,95%): 1869.60 err/s 0.03 reconn/s: 0.00
-[ 240s ] thds: 8 tps: 10.68 qps: 301.63 (r/w/o: 137.50/142.77/21.37) lat (ms,95%): 1618.78 err/s 0.07 reconn/s: 0.00
-[ 300s ] thds: 8 tps: 10.38 qps: 297.00 (r/w/o: 135.22/141.02/20.77) lat (ms,95%): 1589.90 err/s 0.02 reconn/s: 0.00
-SQL statistics:
-    queries performed:
-        read:                            40977
-        write:                           42549
-        other:                           6280
-        total:                           89806
-    transactions:                        3132   (10.24 per sec.)
-    queries:                             89806  (293.66 per sec.)
-    ignored errors:                      13     (0.04 per sec.)
-    reconnects:                          0      (0.00 per sec.)
-
-General statistics:
-    total time:                          305.8097s
-    total number of events:              3132
-
-Latency (ms):
-         min:                                    1.71
-         avg:                                  771.13
-         max:                                 9680.45
-         95th percentile:                     1869.60
-         sum:                              2415176.41
-
-Threads fairness:
-    events (avg/stddev):           391.5000/20.14
-    execution time (avg/stddev):   301.8971/2.10
-
-sysbench 1.0.18 (using system LuaJIT 2.1.0-beta3)
-
-Running the test with following options:
-Number of threads: 8
-Report intermediate results every 60 second(s)
-Initializing random number generator from current time
-
-
-Initializing worker threads...
-
-DB SCHEMA public
-DB SCHEMA public
-DB SCHEMA public
-DB SCHEMA public
-DB SCHEMA public
-DB SCHEMA public
-DB SCHEMA public
-DB SCHEMA public
-Threads started!
-
 [ 60s ] thds: 8 tps: 38.83 qps: 1121.55 (r/w/o: 510.37/533.12/78.06) lat (ms,95%): 707.07 err/s 0.15 reconn/s: 0.00
 [ 120s ] thds: 8 tps: 52.80 qps: 1507.81 (r/w/o: 688.23/713.98/105.60) lat (ms,95%): 363.18 err/s 0.28 reconn/s: 0.00
 [ 180s ] thds: 8 tps: 61.20 qps: 1748.47 (r/w/o: 798.32/827.75/122.40) lat (ms,95%): 369.77 err/s 0.23 reconn/s: 0.00
