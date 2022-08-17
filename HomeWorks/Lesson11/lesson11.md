@@ -403,6 +403,7 @@ pg_profiler-отчёт: [report_45_46.html](https://htmlpreview.github.io/?https
 diff-отчёты.
 1. Между хорошим тестом и tpcc-тестом в дефолтных настройках пг-кластера, сразу после его установки и до отстройки ОС-и: [report_diff_4_5_47_48.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_4_5_47_48.html)
 2. Между хорошим и плохим tpcc-тестами: [report_diff_45_46_47_48.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/report_diff_45_46_47_48.html)
+   Секция `Vacuum-related statistics`: наглядно показывает разницу между тестами.
 
 Из спортивного интереса попытался, к значениям параметров дающих лучшее значение метрики добавить `fsync=off, synchronous_commit=off`;
 И посмотреть какую метрику покажет тест в такой конфигурации.
