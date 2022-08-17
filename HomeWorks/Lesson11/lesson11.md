@@ -2,7 +2,7 @@
 Полезные статьи:
 1. [статья про настройку памяти, sysctl для пг](https://habr.com/ru/post/458860/) - комментарии на порядок полезнее самой статьи.
    [официоз от пг-комьюнити](https://www.postgresql.org/docs/current/kernel-resources.html)
-3. [референс]([https://www.postgresql.org/docs/current/kernel-resources.html](https://www.kernel.org/doc/html/latest/admin-guide/sysctl/index.html)) по параметрам линукс-ядра.
+3. [референс](https://www.kernel.org/doc/html/latest/admin-guide/sysctl/index.html) по параметрам линукс-ядра.
 4. [прикольная справка по параметрам конф-ции пг](https://postgresqlco.nf/doc/ru/param/effective_cache_size/)
 5. Отличная вещь для пг, прямо таки - awr-like approach [pg_profiler](https://github.com/zubkov-andrei/pg_profile)
 6. [Шикарная статья](https://habr.com/ru/company/postgrespro/blog/466199/), про блокировки в памяти, всё как в оракле. В общем то - почему должно быть по другому, механизмы, среда, цели работы - те же.
