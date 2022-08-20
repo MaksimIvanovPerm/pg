@@ -36,3 +36,29 @@ fi
 if [ -f "$PGLOG" ]; then
    alias lesspglog='less "$PGLOG"'
 fi
+
+restart_cluster(){
+local v_cversion=${1:-14}
+local v_cname=${2:-"main"}
+local v_delay=${3:-5}
+local PG_HOST=${4:-"127.0.0.1"}
+local PG_PORT=${5:-5432}
+echo "Trying to restart ${v_cversion} ${v_cname}, with delay between iteration: ${v_delay}"
+
+pg_ctlcluster "$v_cversion" "$v_cname" stop
+sleep 2
+pg_ctlcluster "$v_cversion" "$v_cname" start
+sleep 2
+pg_isready -t 1 -q -h "$PG_HOST" -p "$PG_PORT"
+rc="$?"
+while [ "$rc" -ne "0" ]; do
+      echo "wait for cluster shutdowning"
+      sleep "$v_delay"
+      pg_ctlcluster "$v_cversion" "$v_cname" start
+      sleep 1
+      pg_isready -t 1 -q -h "$PG_HOST" -p "$PG_PORT"
+      rc="$?"
+done
+echo "cluster ${v_cversion} ${v_cname} restarted"
+}
+
