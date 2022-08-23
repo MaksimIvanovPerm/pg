@@ -1,10 +1,10 @@
  
 # Бэкапирование-тема
 Кучка тематических ссылок
-[http://www.interdb.jp/pg/pgsql10.html](http://www.interdb.jp/pg/pgsql10.html)
-[ttps://dbsguru.com/restore-backup-using-pg_basebackup-postgresql/](ttps://dbsguru.com/restore-backup-using-pg_basebackup-postgresql/)
-[ttps://www.percona.com/blog/2019/07/10/wal-retention-and-clean-up-pg_archivecleanup/](ttps://www.percona.com/blog/2019/07/10/wal-retention-and-clean-up-pg_archivecleanup/)
-[ttps://www.highgo.ca/2021/10/01/postgresql-14-continuous-archiving-and-point-in-time-recovery/](ttps://www.highgo.ca/2021/10/01/postgresql-14-continuous-archiving-and-point-in-time-recovery/)
+1. [http://www.interdb.jp/pg/pgsql10.html](http://www.interdb.jp/pg/pgsql10.html)
+2. [ttps://dbsguru.com/restore-backup-using-pg_basebackup-postgresql/](https://dbsguru.com/restore-backup-using-pg_basebackup-postgresql/)
+3. [ttps://www.percona.com/blog/2019/07/10/wal-retention-and-clean-up-pg_archivecleanup/](https://www.percona.com/blog/2019/07/10/wal-retention-and-clean-up-pg_archivecleanup/)
+4. [ttps://www.highgo.ca/2021/10/01/postgresql-14-continuous-archiving-and-point-in-time-recovery/](https://www.highgo.ca/2021/10/01/postgresql-14-continuous-archiving-and-point-in-time-recovery/)
 
 Вообще говоря: тут надо расшариваемый и физически отдельный, от серверов субд, сторидж, для хранения бэкапов.
 И, лучше, не один.
