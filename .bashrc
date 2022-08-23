@@ -1,9 +1,13 @@
+cd
+PGCONF=""
 PGCONF=$( psql -t -c "show config_file;" 2>/dev/null | tr -d [:cntrl:] | sed -r "s/^ +//" )
 export PGCONF="$PGCONF"
 
+HBAFILE=""
 HBAFILE=$( psql -t -c "show hba_file;" 2>/dev/null | tr -d [:cntrl:] | sed -r "s/^ +//" )
 export HBAFILE="$HBAFILE"
 
+PGDATA=""
 PGDATA=$( psql -t -c "show data_directory;" 2>/dev/null | tr -d [:cntrl:] | sed -r "s/^ +//" )
 export PGDATA="$PGDATA"
 
@@ -17,6 +21,12 @@ if [ ! -f "$PGLOG" ]; then
    PGLOG=""
 fi
 
+if [ ! -z "$PGCONF" ]; then
+   v_recovermode="unknown"
+   v_str=$( psql -tc "select pg_is_in_recovery();" | tr -d [:space:] | tr [:upper:] [:lower:] )
+   [ "$v_str" == "t" ] && v_recovermode="In_Recovery"
+   [ "$v_str" == "f" ] && v_recovermode="Not_in_recovery"
+fi
 
 cat << __EOF__ | column -t
 PGCONF "$PGCONF"
@@ -24,6 +34,7 @@ HBAFILE "$HBAFILE"
 CLUSTER "$CLUSTER"
 PGLOG "$PGLOG"
 PGDATA "$PGDATA"
+RecoverMode "$v_recovermode"
 __EOF__
 
 if [ -f "$PGCONF" ]; then
