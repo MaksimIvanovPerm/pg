@@ -118,7 +118,6 @@
    psql -c "select pg_switch_wal();" 
    ``` 
    ![archmode](/HomeWorks/Lesson12/archive_mode_setted.png)
-   ![rotation_of_obsolete_archivelogs](/HomeWorks/Lesson12/rotation_of_obsolete_archivelogs.png)
 3. Создание бэкапа, ротирование obsolete-архивлогов:
    ```shell
    [ ! -d "/mnt/sharedstorage/backup" ] && mkdir -p "/mnt/sharedstorage/backup" 
@@ -135,6 +134,7 @@
    fi
    ```
    ![making_backup](/HomeWorks/Lesson12/making_backup.png)
+   ![rotation_of_obsolete_archivelogs](/HomeWorks/Lesson12/rotation_of_obsolete_archivelogs.png)
 4. Именно после создания бэкапа: скриптик для каких то изменений в бд и выполнение этого скрипта.
    ```shell
    psql -c "create table testtab(col1 integer);" 
