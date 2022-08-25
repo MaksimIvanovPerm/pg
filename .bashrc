@@ -39,6 +39,7 @@ __EOF__
 
 if [ -f "$PGCONF" ]; then
    alias epconf='vim "$PGCONF"'
+   alias show_pgconf='egrep "^[^#]\w+.*" $PGCONF | sort -k 1'
 fi
 if [ -f "$HBAFILE" ]; then
    alias ehbafile='vim "$HBAFILE"'
