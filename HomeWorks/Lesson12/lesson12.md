@@ -1,4 +1,3 @@
- 
 # Бэкапирование-тема
 Кучка тематических ссылок
 1. [http://www.interdb.jp/pg/pgsql10.html](http://www.interdb.jp/pg/pgsql10.html)
@@ -408,5 +407,87 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
 
 У меня получилось выполнять эту процедуру в виде такой пос-ти действий:
 
-
-   
+1. Пусть есть настроенная физ-я репликация: мастер и хот-реплика:
+   ![1](/HomeWorks/Lesson12/1.png)   
+   ![2](/HomeWorks/Lesson12/2.png)   
+   На стороне действующего мастера выполняем (опционально):
+   ```shell
+   psql -c "checkpoint;" 
+   psql -c "select pg_switch_wal();" 
+   ```
+2. На текущей standby-стороне сделать `pg_promote();` Оно удалит `$PGDATA/standby.signal` и откроет кластер как праймари.
+   Конфигурация реплика-кластера - не меняется, на этом шаге.
+   `psql -c "select pg_promote();"`
+   На этот момент времени: существуют два праймари-кластера, старый и новый (который запромоутили).
+   Лог нового мастера:
+   ```shell
+   2022-08-27 08:58:12.908 UTC [1820] LOG:  received promote request 
+   2022-08-27 08:58:12.909 UTC [1859] FATAL:  terminating walreceiver process due to administrator command 
+   cp: cannot stat '/mnt/sharedstorage/archivelogs/0000000A.history': No such file or directory 
+   cp: cannot stat '/mnt/sharedstorage/archivelogs/00000009000000000000006F': No such file or directory 
+   2022-08-27 08:58:12.913 UTC [1820] LOG:  invalid record length at 0/6F000060: wanted 24, got 0 
+   2022-08-27 08:58:12.913 UTC [1820] LOG:  redo done at 0/6F000028 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 156.96 s 
+   cp: cannot stat '/mnt/sharedstorage/archivelogs/00000009000000000000006F': No such file or directory 
+   cp: cannot stat '/mnt/sharedstorage/archivelogs/0000000A.history': No such file or directory 
+   2022-08-27 08:58:12.922 UTC [1820] LOG:  selected new timeline ID: 10 
+   2022-08-27 08:58:13.079 UTC [1820] LOG:  archive recovery complete 
+   cp: cannot stat '/mnt/sharedstorage/archivelogs/00000009.history': No such file or directory 
+   2022-08-27 08:58:13.110 UTC [1819] LOG:  database system is ready to accept connections 
+   ``` 
+   ![3](/HomeWorks/Lesson12/3.png)
+3. На бывшей primary-стороне выполнить
+   ```shell 
+   v_localip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | awk '{printf "%s", $2;}' ) 
+   case "$v_localip" in 
+        "10.129.0.5" ) v_masterip="10.129.0.30" ;; 
+        "10.129.0.30" ) v_masterip="10.129.0.5" ;; 
+        *) v_masterip="error" ;; 
+   esac 
+   echo "Local IP: ${v_localip}; Master IP: ${v_masterip}" 
+    
+   pg_ctlcluster 14 main stop 
+   /usr/lib/postgresql/14/bin/pg_rewind --target-pgdata="$PGDATA/"  --source-server='host=10.129.0.30 port=5432 user=postgres password=qazxsw321' -P 
+    
+   touch $PGDATA/standby.signal 
+   if [ "$v_masterip" != "error" ]; then 
+      cat << __EOF__ > /etc/postgresql/14/main/rep.conf 
+   primary_conninfo='host=${v_masterip} port=5432 user=repuser password=qazxsw321' 
+   archive_mode=on 
+   archive_command='/bin/true' 
+   restore_command = 'cp /mnt/sharedstorage/archivelogs/%f "%p"' 
+   hot_standby=on 
+   hot_standby_feedback=on 
+   max_standby_archive_delay=60s 
+   max_standby_streaming_delay=60s 
+   archive_cleanup_command = 'pg_archivecleanup /mnt/sharedstorage/archivelogs %r' 
+   recovery_target_timeline='latest' 
+   wal_keep_size=100MB 
+   __EOF__ 
+   sed -i -e "s/.*include_if_exists.*/include_if_exists=\'rep.conf\'/" $PGCONF; grep "include_if_exists" $PGCONF 
+   restart_cluster 
+   psql -c "select name, setting from pg_settings where name in ('wal_keep_size','listen_addresses','primary_conninfo','recovery_target_timeline','archive_cleanup_command','hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;" 
+   else 
+      echo "Error: can not determ master-side ip; Nothing is changed here" 
+   fi 
+   ``` 
+   ![4](/HomeWorks/Lesson12/4.png)
+   ![5](/HomeWorks/Lesson12/5.png)
+4. На действующем-новом мастере выполнить:
+   ```shell 
+   cat << __EOF__ > /etc/postgresql/14/main/rep.conf 
+   archive_mode=on 
+   archive_command='/var/lib/postgresql/archive.sh "/mnt/sharedstorage/archivelogs" "%f" "%p"' 
+   restore_command='cp /mnt/sharedstorage/archivelogs/%f "%p"' 
+   hot_standby=off 
+   wal_keep_size=100MB 
+   __EOF__ 
+   sed -i -e "s/.*include_if_exists.*/include_if_exists=\'rep.conf\'/" $PGCONF; grep "include_if_exists" $PGCONF 
+   restart_cluster 
+   psql -c "select name, setting from pg_settings where name in ('wal_keep_size','listen_addresses','primary_conninfo','recovery_target_timeline','archive_cleanup_command','hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;" 
+   date 
+   psql -c "select pid, application_name, client_addr, state, sync_state, pg_current_wal_lsn() as current_lsn, sent_lsn, write_lsn from pg_stat_replication;"    
+   ``` 
+   ![6](/HomeWorks/Lesson12/6.png)
+5. Проверка:
+   ![7](/HomeWorks/Lesson12/7.png)
+   ![8](/HomeWorks/Lesson12/8.png)
