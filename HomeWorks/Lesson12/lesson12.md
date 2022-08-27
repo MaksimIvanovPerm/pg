@@ -211,7 +211,7 @@
    postgres@postgresql1:~/14/main$ mv -v ./backup/global/pg_control ./global/ 
    renamed './backup/global/pg_control' -> './global/pg_control' 
    ``` 
-   Третье: при грубой остановке - зря удалил папку $PGDATA/pg_wal, после грубой остановки кластера - снёс последние вал-логи.
+   Третье: при грубой остановке - зря удалил папку `$PGDATA/pg_wal`: снёс последние вал-логи.
    ```shell 
    '/mnt/sharedstorage/archivelogs/000000010000000000000006' -> '/var/lib/postgresql/14/main/pg_wal/000000010000000000000006' 
    '/mnt/sharedstorage/archivelogs/000000010000000000000006.00000028.backup' -> '/var/lib/postgresql/14/main/pg_wal/000000010000000000000006.00000028.backup' 
