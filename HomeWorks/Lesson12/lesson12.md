@@ -725,6 +725,7 @@ table test2;
 \q
 __EOF__
 ```
+На 3-й машине:
 ```shell
 ifconfig eth0 | grep "inet "; date
 psql << __EOF__
