@@ -598,8 +598,139 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
    with (synchronous_commit=off); 
    \x 
    select * from pg_subscription; 
+   select * from pg_replication_slots;
    \q 
    __EOF__ 
    ```
    ![1_4](/HomeWorks/Lesson12/1_4.png)
+   
+   На сторонах публикаций - автоматически создаются слоты, для отправки редо-данных сабскрайберам.
+   Например, на стороне 2-й машины:
+   ![1_5](/HomeWorks/Lesson12/1_5.png)
+   Кстати при попытке удалить бд `d1`, в которой есть активные (в смысле - не `disabled`) подписки, будет ошибка:
+   ```sql
+   postgres=# drop database d1 with (force);
+   ERROR:  database "d1" is being used by logical replication subscription
+   DETAIL:  There are 2 subscriptions.
+   ```
+   
+   Оформлении подписки, на 2-й машине, сначала допустил ошибку - указал не правильное имя публикации.
+   Поправить можно так:
+   ```sql
+   [local]:5432 #postgres@d1 > alter subscription sub1_to_pub2 add publication pub2;
+   ALTER SUBSCRIPTION
+   [local]:5432 #postgres@d1 > alter subscription sub1_to_pub2 drop publication pub1;
+   ALTER SUBSCRIPTION
+   ```
+4. На 1-й машине:
+   ```shell
+   psql << __EOF__
+   \c d1
+   insert into test1(id, col1) values(1, 'msg1');
+   insert into test1(id, col1) values(2, 'msg2');
+   insert into test1(id, col1) values(3, 'msg3');
+   table test1;
+   \q
+   __EOF__
+   ```
+   
+   На 2-й машине:
+   psql << __EOF__
+   \c d1
+   table test1;
+   insert into test2(id, col1) values(1, 'str1');
+   insert into test2(id, col1) values(2, 'str2');
+   insert into test2(id, col1) values(3, 'str3');
+   table test2;
+   \q
+   __EOF__
+   ![1_6](/HomeWorks/Lesson12/1_6.png)
+   ![1_7](/HomeWorks/Lesson12/1_7.png)
 
+Заводим третью машину.
+Получаем на ней пг-кластер
+Проверяем подключаемость к пг-кластерам на первых двух машинах, создание бд `d1` и т.д.:
+```shell
+psql -d "host=10.129.0.5 port=5432 user=postgres password=qazxsw321"
+psql -d "host=10.129.0.30 port=5432 user=postgres password=qazxsw321"
+psql << __EOF__
+create database d1;
+\c d1
+create table test1 (id integer primary key, col1 text);
+create table test2 (id integer primary key, col1 text);
+grant all on test1 to repuser;
+grant all on test2 to repuser;
+\q
+__EOF__
+```
+
+Создаём подписки, на 3-й машине:
+```shell
+v_masterip="10.129.0.30"
+psql << __EOF__
+\c d1
+create subscription sub3_to_pub1
+connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1' 
+PUBLICATION pub1
+with (synchronous_commit=off);
+\x
+select * from pg_subscription;
+\q
+__EOF__
+v_masterip="10.129.0.5"
+psql << __EOF__
+\c d1
+create subscription sub3_to_pub2
+connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1' 
+PUBLICATION pub2
+with (synchronous_commit=off);
+\x
+select * from pg_subscription;
+\q
+__EOF__
+```
+
+тут налетал на ошибку:
+```sql
+You are now connected to database "d1" as user "postgres".
+ERROR:  could not create replication slot "sub1_to_pub1": ERROR:  replication slot "sub1_to_pub1" already exists
+Expanded display is on.
+(0 rows)
+```
+Потому что на стороне паблишера - слот с таким именем: действительно уже был создан, для подписки со 2-й машины.
+
+На 1-й машине:
+```shell
+ifconfig eth0 | grep "inet "; date
+psql << __EOF__
+\c d1
+insert into test1(id, col1) values(4, 'msg1');
+insert into test1(id, col1) values(5, 'msg2');
+table test1;
+\q
+__EOF__
+```
+```shell
+На 2-й машине:
+ifconfig eth0 | grep "inet "; date
+psql << __EOF__
+\c d1
+table test1;
+insert into test2(id, col1) values(4, 'str1');
+insert into test2(id, col1) values(5, 'str2');
+table test2;
+\q
+__EOF__
+```
+```shell
+ifconfig eth0 | grep "inet "; date
+psql << __EOF__
+\c d1
+table test1;
+table test2;
+\q
+__EOF__
+```
+![1_8](/HomeWorks/Lesson12/1_8.png)
+![1_9](/HomeWorks/Lesson12/1_9.png)
+![1_10](/HomeWorks/Lesson12/1_10.png)
