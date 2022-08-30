@@ -338,7 +338,7 @@
 
 
 
-# Standby-тема
+# Standby-тема, физическая репликация.
 Тематические ссылки:
 1. [официоз](https://www.postgresql.org/docs/14/warm-standby.html#STANDBY-SERVER-OPERATION)
 2. [https://habr.com/ru/post/216067/](https://habr.com/ru/post/216067/)
@@ -492,3 +492,114 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
 5. Проверка:
    ![7](/HomeWorks/Lesson12/7.png)
    ![8](/HomeWorks/Lesson12/8.png)
+
+# Standby-тема, логическая репликация.
+Формулировка была такая:
+```
+На 1 ВМ создаем таблицы test для записи, test2 для запросов на чтение. 
+Создаем публикацию таблицы test и подписываемся на публикацию таблицы test2 с ВМ №2. 
+На 2 ВМ создаем таблицы test2 для записи, test для запросов на чтение. 
+Создаем публикацию таблицы test2 и подписываемся на публикацию таблицы test1 с ВМ №1. 
+3 ВМ использовать как реплику для чтения и бэкапов (подписаться на таблицы из ВМ №1 и №2 ).
+```
+[Официоз](https://www.postgresql.org/docs/14/logical-replication.html) - написано весьма доходчиво. 
+[пример из интернета](https://linuxhint.com/postgresql-logical-replication-ubuntu/)
+
+Это полнокровная репликация.
+Как в любой репликации: категорически необходимы ключи строк, для таблицы и её таблиц-реплики, одинаково устроеные.
+Очень не желательны fk и триггера, на таблицах-репликах.
+Есть первоначальная инициализация таблиц-реплик и она делается автоматом - это и хорошо (дба-работы меньше) и плохо (когда таблицы большине).
+Первичная инициализация делается по команде `create subscription`, и, видимо как раз на второй случай (когда - плохо) предусмотрена опция `copy_data=false`
+Типа: дба сам, проинициализировал таблицу-реплику и уже не надо её инициализировать.
+
+На 1-й и 2-й вм выполняем:
+1. ```shell
+   psql -c "alter system set wal_level='logical';"
+   #psql -c "select * from pg_reload_conf();"
+   restart_cluster
+   psql -c "select name, setting from pg_settings where name in ('wal_keep_size','listen_addresses','primary_conninfo','recovery_target_timeline','archive_cleanup_command','hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;"
+   
+   psql << __EOF__
+   create database d1;
+   \c d1
+   create table test1 (id integer primary key, col1 text);
+   create table test2 (id integer primary key, col1 text);
+   grant all on test1 to repuser;
+   grant all on test2 to repuser;
+   \q
+   __EOF__
+   Также: поправляем запись в `pg_hba.conf` разрешаем подключения:
+   host    replication,d1  repuser         10.129.0.*/24          scram-sha-256
+   ```
+2. На 1-й машине:
+   ```shell
+   psql << __EOF__
+   \c d1
+   create publication pub1 for table test1 with (publish='insert,update,delete,truncate');
+   select  pt.pubname, pt.schemaname, pt.tablename
+          ,p.puballtables, p.pubinsert, p.pubupdate, p.pubdelete, p.pubtruncate, p.pubviaroot
+   from pg_publication p, pg_publication_tables pt
+   where pt.pubname=p.pubname;
+   \dRp+
+   \q
+   __EOF__
+   ```
+   ![1_1](/HomeWorks/Lesson12/1_1.png)
+   На 2-й машине:
+   psql << __EOF__
+   \c d1
+   create publication pub2 for table test2 with (publish='insert,update,delete,truncate');
+   select  pt.pubname, pt.schemaname, pt.tablename
+          ,p.puballtables, p.pubinsert, p.pubupdate, p.pubdelete, p.pubtruncate, p.pubviaroot
+   from pg_publication p, pg_publication_tables pt
+   where pt.pubname=p.pubname;
+   \dRp+
+   \q
+   __EOF__
+   ![1_2](/HomeWorks/Lesson12/1_2.png)
+3. На 1-й машине:
+   ```shell 
+   v_localip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | awk '{printf "%s", $2;}' ) 
+   case "$v_localip" in 
+        "10.129.0.5" ) v_masterip="10.129.0.30" ;; 
+        "10.129.0.30" ) v_masterip="10.129.0.5" ;; 
+        *) v_masterip="error" ;; 
+   esac 
+   echo "Local IP: ${v_localip}; Master IP: ${v_masterip}" 
+    
+   psql << __EOF__ 
+   \c d1 
+   create subscription sub1_to_pub2 
+   connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1'  
+   PUBLICATION pub2 
+   with (synchronous_commit=off); 
+   \x 
+   select * from pg_subscription; 
+   \q 
+   __EOF__ 
+   ``` 
+   ![1_3](/HomeWorks/Lesson12/1_3.png)
+   
+   На 2-й машине: 
+   ```shell
+   v_localip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | awk '{printf "%s", $2;}' ) 
+   case "$v_localip" in 
+        "10.129.0.5" ) v_masterip="10.129.0.30" ;; 
+        "10.129.0.30" ) v_masterip="10.129.0.5" ;; 
+        *) v_masterip="error" ;; 
+   esac 
+   echo "Local IP: ${v_localip}; Master IP: ${v_masterip}" 
+    
+   psql << __EOF__ 
+   \c d1 
+   create subscription sub1_to_pub1 
+   connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1'  
+   PUBLICATION pub1 
+   with (synchronous_commit=off); 
+   \x 
+   select * from pg_subscription; 
+   \q 
+   __EOF__ 
+   ```
+   ![1_4](/HomeWorks/Lesson12/1_4.png)
+
