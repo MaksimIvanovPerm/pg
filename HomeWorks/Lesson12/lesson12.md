@@ -604,9 +604,10 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
    ```
    ![1_4](/HomeWorks/Lesson12/1_4.png)
    
-   На сторонах публикаций - автоматически создаются слоты, для отправки редо-данных сабскрайберам.
-   Например, на стороне 2-й машины:
+   На сторонах публикаций - автоматически создаются слоты, для отправки редо-данных сабскрайберам. Например, на стороне 2-й машины:
+   
    ![1_5](/HomeWorks/Lesson12/1_5.png)
+   
    Кстати при попытке удалить бд `d1`, в которой есть активные (в смысле - не `disabled`) подписки, будет ошибка:
    ```sql
    postgres=# drop database d1 with (force);
@@ -635,6 +636,7 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
    ```
    
    На 2-й машине:
+   ```shell
    psql << __EOF__
    \c d1
    table test1;
@@ -644,6 +646,7 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
    table test2;
    \q
    __EOF__
+   ```
    ![1_6](/HomeWorks/Lesson12/1_6.png)
    ![1_7](/HomeWorks/Lesson12/1_7.png)
 
