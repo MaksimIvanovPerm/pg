@@ -1,0 +1,386 @@
+egrep "^[^#]\w+.*" $PGCONF | sort -k 1
+
+ARCHLOG_DIR="/mnt/sharedstorage/archivelogs/"
+v_logname=""
+if [ -f "$PGDATA/backup_manifest" ]; then
+   v_start_lsn=$( cat $PGDATA/backup_manifest | grep "Start-LSN" | awk '{printf "%s", $5;}' | tr -d [\"] )
+   for i in $( find "$ARCHLOG_DIR" -type f ); do
+       grep -q -m 1 "$v_start_lsn" "$i"
+       if [ "$?" -eq "0" ]; then
+          v_logname="$i"
+          break
+       fi
+   done
+   if [ ! -z "$v_logname" ]; then
+      echo "LSN ${v_start_lsn} was found in ${v_logname}"
+      pg_archivecleanup -d "$ARCHLOG_DIR" `basename "$v_logname"`
+   fi
+else
+   echo "There is no file $PGDATA/backup_manifest"
+fi
+
+Физический standby
+Официальная дока: https://www.postgresql.org/docs/14/warm-standby.html#STANDBY-SERVER-OPERATION
+
+1 Готовим сервера, субд.
+Из за работы с нфс-шарой - надо чтобы uid|gid postgresql-аккаунта ОС-и: были одинаковыми, на серверах субд.
+Поднимаем субд, на обоих сторонах.
+Зачем то создают отдельный бд-аккаунт, с ролями `REPLICATION, LOGIN`
+Ну, ок, создаём пользователя, в обоих базах.
+psql << __EOF__
+create user repuser with login replication password 'qazxsw321';
+\q
+__EOF__
+На обоих серверах субд - правим pg_hba.conf, выставляем пар-р `listen_addresses` и проверяем успешность подключения, с одного сервера на другой.
+echo "#host    replication     repuser         10.129.0.5/24          scram-sha-256
+
+# for standby
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+host    all             repuser         10.129.0.5/24          scram-sha-256" >> "/etc/postgresql/14/main/pg_hba.conf"
+psql -c "alter system set listen_addresses='0.0.0.0';"
+restart_cluster
+psql -c "select name, setting from pg_settings where name='listen_addresses';"
+
+psql -h 10.129.0.5 -p 5432 -d postgres -U repuser
+
+2. Останавливаем субд на сервере которая будет standby
+   На обоих серверах проставляем, в основной конфигурационный файл кластера:
+   wal_level=replica
+   wal_log_hints=on
+   На сервере которая будет - праймари: настраиваем архлог-режим.
+psql << __EOF__
+alter system set archive_mode=on;
+alter system set archive_command='/var/lib/postgresql/archive.sh "/mnt/sharedstorage/archivelogs" "%f" "%p"';
+alter system set restore_command = 'cp /mnt/sharedstorage/archivelogs/%f "%p"'
+__EOF__
+restart_cluster
+psql -c "select name, setting from pg_settings where name in ('hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;"
+psql -c "select pg_switch_wal();"
+3. На стороне standby-бд уничтожаем всё в дата-директории, получаем физический бэкап, с праймари-стороны.
+   pg_ctlcluster 14 main stop
+   cd /var/lib/postgresql/14/main; find ./ -delete 2>/dev/null
+   pg_basebackup -h 10.129.0.30 -p 5432 -U repuser -D /var/lib/postgresql/14/main -c fast -F p -P -v
+   touch $PGDATA/standby.signal
+4.Параметры standby: https://www.postgresql.org/docs/14/runtime-config-replication.html
+primary_conninfo='host=10.129.0.30 port=5432 user=repuser password=qazxsw321'
+archive_mode=on
+archive_command='/bin/true'
+restore_command = 'cp /mnt/sharedstorage/archivelogs/%f "%p"'
+
+
+Вообще имеет смысл роль-специфичные (т.е.: специфичные для состояния standby, или primary) параметры выносить в отдельный настроенчый файл.
+Который инклудить по include_if_exists=/etc/postgresql/14/main/ha_role.conf
+И который инициализировать при смене роли кластера.
+  
+
+v_wl=$( /usr/lib/postgresql/14/bin/pg_controldata -D "$PGDATA" | grep "Latest checkpoint's REDO WAL file:" | awk -F ":" '{printf "%s", $2;}' | tr -d [:space:] )
+pg_archivecleanup -n $PGDATA/pg_wal "$v_wl"
+
+
+https://severalnines.com/blog/using-postgresql-replication-slots/
+
+psql -c "select conninfo from pg_stat_wal_receiver;"
+                                                                                                                                    conninfo                                                                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ user=repuser password=******** channel_binding=prefer dbname=replication host=10.129.0.30 port=5432 fallback_application_name=14/main sslmode=prefer sslcompression=0 sslsni=1 ssl_min_protocol_version=TLSv1.2 gssencmode=prefer krbsrvname=postgres target_session_attrs=any
+(1 row)
+
+postgres@postgresql2:~$ psql -c "select pg_is_in_recovery();"
+ pg_is_in_recovery
+-------------------
+ t
+(1 row)
+
+hot-standby
+В /etc/postgresql/14/main/ha_role.conf добавляем:
+hot_standby=on
+hot_standby_feedback=on
+max_standby_archive_delay=60s
+max_standby_streaming_delay=60s
+
+И просто рестартим standby-кластер.
+
+##### pg_rewind
+# https://habr.com/ru/post/216067/
+# https://www.percona.com/blog/2021/04/22/demonstrating-pg_rewind-using-linux-containers-in-postgresql/
+# https://www.youtube.com/watch?v=qc7HTiJm_tQ
+# https://medium.com/analytics-vidhya/postgresql-streaming-replication-4b4679b352f3
+
+# .pgpass https://stackoverflow.com/questions/16786011/postgresql-pgpass-not-working
+
+1) На ткущей primary-стороне сделать чекпойнт и свич текущего вал-лога. Остановить праймари-кластер.
+psql -c "checkpoint;" 
+psql -c "select pg_switch_wal();" 
+
+2) На текущей standby-стороне сделать pg_promote(); Оно удалит $PGDATA/standby.signal и откроет кластер как праймари.
+Конфигурация кластера - не меняется, на этом шаге.
+psql -c "select pg_promote();"
+На этот момент времени: существуют два праймари-кластера.
+
+3) На бывшей primary-стороне выполнить
+v_localip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | awk '{printf "%s", $2;}' )
+case "$v_localip" in
+     "10.129.0.5" ) v_masterip="10.129.0.30" ;;
+     "10.129.0.30" ) v_masterip="10.129.0.5" ;;
+     *) v_masterip="error" ;;
+esac
+echo "Local IP: ${v_localip}; Master IP: ${v_masterip}"
+
+pg_ctlcluster 14 main stop
+/usr/lib/postgresql/14/bin/pg_rewind --target-pgdata="$PGDATA/"  --source-server='host=10.129.0.30 port=5432 user=postgres password=qazxsw321' -P
+
+touch $PGDATA/standby.signal
+if [ "$v_masterip" != "error" ]; then
+   cat << __EOF__ > /etc/postgresql/14/main/rep.conf
+primary_conninfo='host=${v_masterip} port=5432 user=repuser password=qazxsw321'
+archive_mode=on
+archive_command='/bin/true'
+restore_command = 'cp /mnt/sharedstorage/archivelogs/%f "%p"'
+hot_standby=on
+hot_standby_feedback=on
+max_standby_archive_delay=60s
+max_standby_streaming_delay=60s
+archive_cleanup_command = 'pg_archivecleanup /mnt/sharedstorage/archivelogs %r'
+recovery_target_timeline='latest'
+wal_keep_size=100MB
+__EOF__
+sed -i -e "s/.*include_if_exists.*/include_if_exists=\'rep.conf\'/" $PGCONF; grep "include_if_exists" $PGCONF
+restart_cluster
+psql -c "select name, setting from pg_settings where name in ('wal_keep_size','listen_addresses','primary_conninfo','recovery_target_timeline','archive_cleanup_command','hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;"
+else
+   echo "Error: can not determ master-side ip; Nothing is changed here"
+fi
+
+4) На стороне новой primary-бд выполнить смену конфигурации, перезапустить кластер:
+cat << __EOF__ > /etc/postgresql/14/main/rep.conf
+archive_mode=on
+archive_command='/var/lib/postgresql/archive.sh "/mnt/sharedstorage/archivelogs" "%f" "%p"'
+restore_command='cp /mnt/sharedstorage/archivelogs/%f "%p"'
+hot_standby=off
+wal_keep_size=100MB
+__EOF__
+sed -i -e "s/.*include_if_exists.*/include_if_exists=\'rep.conf\'/" $PGCONF; grep "include_if_exists" $PGCONF
+restart_cluster
+psql -c "select name, setting from pg_settings where name in ('wal_keep_size','listen_addresses','primary_conninfo','recovery_target_timeline','archive_cleanup_command','hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;"
+date
+psql -c "select pid, application_name, client_addr, state, sync_state, pg_current_wal_lsn() as current_lsn, sent_lsn, write_lsn from pg_stat_replication;"   
+
+
+Перелепливание standby-бд:
+cd "$PGDATA/"; find ./ -delete
+pg_basebackup --dbname="host=${v_masterip} port=5432 user=repuser password=qazxsw321" -D "$PGDATA/" -c fast -F p -P -v
+
+
+pg_receivewal --directory="$PGDATA/pg_wal" -d "host=${v_masterip} port=5432 user=postgres password=qazxsw321" -v
+
+Логическая репликация.
+# Официоз https://www.postgresql.org/docs/14/logical-replication.html
+# https://linuxhint.com/postgresql-logical-replication-ubuntu/
+
+
+1) На обоих сторонах выполнить:
+psql -c "alter system set wal_level='logical';"
+#psql -c "select * from pg_reload_conf();"
+restart_cluster
+psql -c "select name, setting from pg_settings where name in ('wal_keep_size','listen_addresses','primary_conninfo','recovery_target_timeline','archive_cleanup_command','hot_standby','wal_log_hints','wal_sender_timeout ','wal_level','archive_mode','archive_command','restore_command','full_page_writes') order by name;"
+
+psql << __EOF__
+create database d1;
+\c d1
+create table test1 (id integer primary key, col1 text);
+create table test2 (id integer primary key, col1 text);
+grant all on test1 to repuser;
+grant all on test2 to repuser;
+\q
+__EOF__
+Также: поправляем запись в `pg_hba.conf`
+host    replication,d1  repuser         10.129.0.5/24          scram-sha-256
+
+
+2) На 1-й машине:
+psql << __EOF__
+\c d1
+create publication pub1 for table test1 with (publish='insert,update,delete,truncate');
+select  pt.pubname, pt.schemaname, pt.tablename
+       ,p.puballtables, p.pubinsert, p.pubupdate, p.pubdelete, p.pubtruncate, p.pubviaroot
+from pg_publication p, pg_publication_tables pt
+where pt.pubname=p.pubname
+;
+\dRp+
+\q
+__EOF__
+
+На 2-й машине:
+psql << __EOF__
+\c d1
+create publication pub2 for table test2 with (publish='insert,update,delete,truncate');
+select  pt.pubname, pt.schemaname, pt.tablename
+       ,p.puballtables, p.pubinsert, p.pubupdate, p.pubdelete, p.pubtruncate, p.pubviaroot
+from pg_publication p, pg_publication_tables pt
+where pt.pubname=p.pubname
+;
+\dRp+
+\q
+__EOF__
+
+На 1-й машине:
+v_localip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | awk '{printf "%s", $2;}' )
+case "$v_localip" in
+     "10.129.0.5" ) v_masterip="10.129.0.30" ;;
+     "10.129.0.30" ) v_masterip="10.129.0.5" ;;
+     *) v_masterip="error" ;;
+esac
+echo "Local IP: ${v_localip}; Master IP: ${v_masterip}"
+
+psql << __EOF__
+\c d1
+create subscription sub1_to_pub2
+connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1' 
+PUBLICATION pub2
+with (synchronous_commit=off);
+\x
+select * from pg_subscription;
+\q
+__EOF__
+
+На 2-й машине:
+v_localip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | awk '{printf "%s", $2;}' )
+case "$v_localip" in
+     "10.129.0.5" ) v_masterip="10.129.0.30" ;;
+     "10.129.0.30" ) v_masterip="10.129.0.5" ;;
+     *) v_masterip="error" ;;
+esac
+echo "Local IP: ${v_localip}; Master IP: ${v_masterip}"
+
+psql << __EOF__
+\c d1
+create subscription sub1_to_pub1
+connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1' 
+PUBLICATION pub1
+with (synchronous_commit=off);
+\x
+select * from pg_subscription;
+\q
+__EOF__
+
+3) На 1-й машине:
+psql << __EOF__
+\c d1
+insert into test1(id, col1) values(1, 'msg1');
+insert into test1(id, col1) values(2, 'msg2');
+insert into test1(id, col1) values(3, 'msg3');
+table test1;
+\q
+__EOF__
+
+На 2-й машине:
+psql << __EOF__
+\c d1
+table test1;
+insert into test2(id, col1) values(1, 'str1');
+insert into test2(id, col1) values(2, 'str2');
+insert into test2(id, col1) values(3, 'str3');
+table test2;
+\q
+__EOF__
+
+На 1-й машине:
+psql << __EOF__
+\c d1
+table test2;
+\q
+__EOF__
+
+[local]:5432 #postgres@d1 > alter subscription sub1_to_pub2 add publication pub2;
+ALTER SUBSCRIPTION
+[local]:5432 #postgres@d1 > alter subscription sub1_to_pub2 drop publication pub1;
+ALTER SUBSCRIPTION
+
+Заводим третью машину.
+Получаем на ней пг-кластер
+Проверяем подключаемость к пг-кластерам на первых двух машинах.
+psql -d "host=10.129.0.5 port=5432 user=postgres password=qazxsw321"
+Выполняем:
+
+psql << __EOF__
+create database d1;
+\c d1
+create table test1 (id integer primary key, col1 text);
+create table test2 (id integer primary key, col1 text);
+grant all on test1 to repuser;
+grant all on test2 to repuser;
+\q
+__EOF__
+
+Создаём подписки, на публикацию на 1-й машине:
+v_masterip="10.129.0.30"
+psql << __EOF__
+\c d1
+create subscription sub3_to_pub1
+connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1' 
+PUBLICATION pub1
+with (synchronous_commit=off);
+\x
+select * from pg_subscription;
+\q
+__EOF__
+
+You are now connected to database "d1" as user "postgres".
+ERROR:  could not create replication slot "sub1_to_pub1": ERROR:  replication slot "sub1_to_pub1" already exists
+Expanded display is on.
+(0 rows)
+
+SELECT
+  slot_name,
+  plugin,
+  slot_type,
+  datoid,
+  database,
+  temporary,
+  active,
+  active_pid,
+  xmin,
+  catalog_xmin,
+  restart_lsn,
+  confirmed_flush_lsn
+FROM pg_replication_slots
+WHERE slot_name = 'sub1_to_pub1';
+
+
+
+На публикацию на второй машине:
+v_masterip="10.129.0.5"
+psql << __EOF__
+\c d1
+create subscription sub3_to_pub2
+connection 'host=${v_masterip} port=5432 user=repuser password=qazxsw321 dbname=d1' 
+PUBLICATION pub2
+with (synchronous_commit=off);
+\x
+select * from pg_subscription;
+\q
+__EOF__
+
+3) На 1-й машине:
+psql << __EOF__
+\c d1
+insert into test1(id, col1) values(4, 'msg1');
+insert into test1(id, col1) values(5, 'msg2');
+table test1;
+\q
+__EOF__
+
+На 2-й машине:
+psql << __EOF__
+\c d1
+table test1;
+insert into test2(id, col1) values(4, 'str1');
+insert into test2(id, col1) values(5, 'str2');
+table test2;
+\q
+__EOF__
+
+
+postgres=# drop database d1 with (force);
+ERROR:  database "d1" is being used by logical replication subscription
+DETAIL:  There are 2 subscriptions.
