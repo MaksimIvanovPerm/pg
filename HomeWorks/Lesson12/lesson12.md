@@ -546,6 +546,7 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
    ```
    ![1_1](/HomeWorks/Lesson12/1_1.png)
    На 2-й машине:
+   ```shell
    psql << __EOF__
    \c d1
    create publication pub2 for table test2 with (publish='insert,update,delete,truncate');
@@ -556,6 +557,7 @@ psql -c "select conninfo from pg_stat_wal_receiver;"
    \dRp+
    \q
    __EOF__
+   ```
    ![1_2](/HomeWorks/Lesson12/1_2.png)
 3. На 1-й машине:
    ```shell 
