@@ -97,6 +97,32 @@ done
 echo "cluster ${v_cversion} ${v_cname} restarted"
 }
 
+stop_cluster(){
+if [ ! -z "$CLUSTER_VERSION" -a ! -z "$CLUSTER_NAME" ]; then
+   pg_ctlcluster "$CLUSTER_VERSION" "$CLUSTER_NAME" stop
+else
+   echo "Can not stop <${CLUSTER_VERSION}> <${CLUSTER_NAME}>"
+fi
+}
+
+start_cluster(){
+local v_delay=5
+
+if [ ! -z "$CLUSTER_VERSION" -a ! -z "$CLUSTER_NAME" ]; then
+   pg_ctlcluster "$CLUSTER_VERSION" "$CLUSTER_NAME" start
+   pg_isready -t 1 -q -h "$PG_HOST" -p "$PG_PORT"
+   rc="$?"
+   while [ "$rc" -ne "0" ]; do
+         sleep "$v_delay"
+         pg_isready -t 1 -q -h "$PG_HOST" -p "$PG_PORT"
+         rc="$?"
+   done
+   echo "$CLUSTER_VERSION $CLUSTER_NAME started"
+else
+   echo "Can not start <${CLUSTER_VERSION}> <${CLUSTER_NAME}>"
+fi
+}
+
 show_pgenv(){
 cat << __EOF__ | column -t
 PGDATABASE "$PGDATABASE"
