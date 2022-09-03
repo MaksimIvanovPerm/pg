@@ -1,0 +1,30 @@
+# https://www.redhat.com/en/blog/postgresql-load-tuning-red-hat-enterprise-linux
+#(echo n; echo p; echo ""; echo ""; echo ""; echo w) | fdisk /dev/vdb
+#fdisk -l /dev/vdb
+mkfs.xfs -b size=4096 -m reflink=1,crc=1 /dev/vdb
+xfs_info /dev/vdb
+
+#mount options
+# man xfs
+mount -t xfs -o noatime,nodiratime /dev/vdb /mnt/postgres
+echo "/dev/vdb  /mnt/postgres xfs noatime,nodiratime 0 0" >> /etc/fstab
+
+mkdir -p /mnt/postgres/14/main
+mkdir -p /mnt/postgres/14/main_clone
+chown -R postgres:postgres /mnt/postgres/
+chmod -R 700 /mnt/postgres/
+
+pg_createcluster --start --start-conf=manual --datadir=/mnt/postgres/14/main 14 main
+pg_lsclusters
+
+
+pg_createcluster --start --start-conf=manual --datadir=/mnt/postgres/14/main_clone --port=5433 14 main_clone
+
+# under env of clone-pg
+pg_ctlcluster 14 main_clone stop
+cd $PGDATA; find ./ -delete
+
+# under env of source-pg
+time cp -Hrv --reflink=always $PGDATA/* /mnt/postgres/14/main_clone/
+
+# under env of clone-pg
