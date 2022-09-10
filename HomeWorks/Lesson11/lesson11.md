@@ -15,7 +15,7 @@
 2. От ОС-аккаунта `postgres`:
    ```shell
    cd ~
-   wget -O pg_profile.tar.gz https://github.com/zubkov-andrei/pg_profile/releases/download/4.0/pg_profile--4.0_manual.tar.gz
+   wget -O pg_profile.tar.gz https://github.com/zubkov-andrei/pg_profile/releases/download/4.0/pg_profile--4.0.tar.gz
    tar xzf pg_profile.tar.gz --directory $(pg_config --sharedir)/extension
    psql << __EOF__
    show search_path;
