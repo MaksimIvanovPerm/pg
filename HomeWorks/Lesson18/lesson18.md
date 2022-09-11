@@ -153,7 +153,9 @@ f8a09ac6153112a5 - это Q2.sql
 ```shell
 psql -d tpch -f $DSS_PATH/Q17.sql -o $DSS_PATH/Q17.explain
 ```
-[Q20.explain](/HomeWorks/Lesson18/Q20.explain)
-[Q21.explain](/HomeWorks/Lesson18/Q21.explain)
-[Q17.explain](/HomeWorks/Lesson18/Q17.explain)
-[Q2.explain](/HomeWorks/Lesson18/Q2.explain)
+| отчёт |
+| ----- |
+|[Q20.explain](/HomeWorks/Lesson18/Q20.explain)|
+|[Q21.explain](/HomeWorks/Lesson18/Q21.explain)|
+|[Q17.explain](/HomeWorks/Lesson18/Q17.explain)|
+|[Q2.explain](/HomeWorks/Lesson18/Q2.explain)|
