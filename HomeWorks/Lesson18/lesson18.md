@@ -287,3 +287,16 @@ HashAggregate  (cost=4514.24..4994.24 rows=10667 width=36) (actual time=100.634.
   Filter: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric)) > $2)
   Batches: 1  Memory Usage: 17937kB
 ```
+
+ДЗ
+1. `Реализовать прямое соединение двух или более таблиц`
+   ![hw1.png](/HomeWorks/Lesson18/hw1.png)
+3. `Реализовать левостороннее (или правостороннее) соединение двух или более таблиц`
+   ![hw2.png](/HomeWorks/Lesson18/hw2.png)
+5. `Реализовать кросс соединение двух или более таблиц`
+   ![hw3.png](/HomeWorks/Lesson18/hw3.png)
+7. `Реализовать полное соединение двух или более таблиц`
+   ![hw4.png](/HomeWorks/Lesson18/hw4.png)
+9. `Реализовать запрос, в котором будут использованы разные типы соединений`
+   ![hw5.png](/HomeWorks/Lesson18/hw5.png)
+   
