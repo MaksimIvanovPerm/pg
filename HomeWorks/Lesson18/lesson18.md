@@ -100,4 +100,29 @@ order by t.reltuples desc
 ```
 
 Дальше - установка расширения `pg_profile`, [шпаргалка](https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/lesson11.md) есть в ДЗ к 11-му занятию.
+При установке этого расширения - в т.ч., как пререквайрементс, ставиться расширение `pg_stat_statements` и ставится ОС-пакет `postgresql-contrib`;
+Так же очень полезным и интересным оказывается расширение `pgcenter`
+Берётся [тут](https://github.com/lesovsky/pgcenter#install-notes), в виде ОС-пакета
+`pgcenter` требует ОС-пакета `postgresql-contrib`, он - уже будет установлен, если поставлен `pg_profile`, поэтому и в этом случае всё просто:
+```shell
+cd
+mkdir pgcenter
+cd pgcenter
+wget -O 1.deb https://github.com/lesovsky/pgcenter/releases/download/v0.9.2/pgcenter_0.9.2_linux_amd64.deb
+sudo dpkg -i 1.deb
+```
 
+пг-кластер: полностью дефолтный.
+Выбрал и сохранил, из скрипта, `tpch_queries.sql` запросы в отдельные скрипты, с именами `Q{1..22}.sql`
+Запустил, на выполнение, таким образом:
+```shell
+psql -c 'SELECT take_sample()'
+for i in {1..22}; do
+    [ -f "$DSS_PATH/Q${i}.log" ] && cat /dev/null > "$DSS_PATH/Q${i}.log"
+    nohup psql -d tpch -q -f "$DSS_PATH/Q${i}.sql" -o "$DSS_PATH/Q${i}.log" &
+done
+wait
+psql -c 'SELECT take_sample()'
+```
+Так оно проработало >18-ть часов и выполнения запросов `Q17,Q20,Q21` я так и не дождался, канселировал, эти запросы, с помощью `pgcenter` (т.е.: по `pg_cancel_backend`)
+Отчёт, по этой попытке выполнения теста: [report_2_3.html](/HomeWorks/Lesson18/report_2_3.html)
