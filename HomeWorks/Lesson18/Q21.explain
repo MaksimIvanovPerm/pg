@@ -1,0 +1,101 @@
+select
+        s_name,
+        count(*) as numwait
+from
+        supplier,
+        lineitem l1,
+        orders,
+        nation
+where
+        s_suppkey = l1.l_suppkey
+        and o_orderkey = l1.l_orderkey
+        and o_orderstatus = 'F'
+        and l1.l_receiptdate > l1.l_commitdate
+        and exists (
+                select
+                        *
+                from
+                        lineitem l2
+                where
+                        l2.l_orderkey = l1.l_orderkey
+                        and l2.l_suppkey <> l1.l_suppkey
+        )
+        and not exists (
+                select
+                        *
+                from
+                        lineitem l3
+                where
+                        l3.l_orderkey = l1.l_orderkey
+                        and l3.l_suppkey <> l1.l_suppkey
+                        and l3.l_receiptdate > l3.l_commitdate
+        )
+        and s_nationkey = n_nationkey
+        and n_name = 'SAUDI ARABIA'
+group by
+        s_name
+order by
+        numwait desc,
+        s_name
+;                                                                                                                                                            QUERY PLAN                                                                                                                                                            
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=528545.94..528545.94 rows=1 width=34)
+   Output: supplier.s_name, (count(*))
+   ->  Sort  (cost=528545.94..528545.94 rows=1 width=34)
+         Output: supplier.s_name, (count(*))
+         Sort Key: (count(*)) DESC, supplier.s_name
+         ->  GroupAggregate  (cost=528545.91..528545.93 rows=1 width=34)
+               Output: supplier.s_name, count(*)
+               Group Key: supplier.s_name
+               ->  Sort  (cost=528545.91..528545.91 rows=1 width=26)
+                     Output: supplier.s_name
+                     Sort Key: supplier.s_name
+                     ->  Gather  (cost=493491.49..528545.90 rows=1 width=26)
+                           Output: supplier.s_name
+                           Workers Planned: 2
+                           ->  Parallel Hash Join  (cost=492491.49..527545.80 rows=1 width=26)
+                                 Output: supplier.s_name
+                                 Hash Cond: (orders.o_orderkey = l1.l_orderkey)
+                                 ->  Parallel Seq Scan on public.orders  (cost=0.00..33907.50 rows=305812 width=4)
+                                       Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                       Filter: (orders.o_orderstatus = 'F'::bpchar)
+                                 ->  Parallel Hash  (cost=492491.48..492491.48 rows=1 width=34)
+                                       Output: supplier.s_name, l1.l_orderkey, l2.l_orderkey
+                                       ->  Nested Loop Semi Join  (cost=157802.05..492491.48 rows=1 width=34)
+                                             Output: supplier.s_name, l1.l_orderkey, l2.l_orderkey
+                                             Join Filter: ((l2.l_suppkey <> l1.l_suppkey) AND (l1.l_orderkey = l2.l_orderkey))
+                                             ->  Parallel Hash Anti Join  (cost=157802.05..308963.55 rows=1 width=34)
+                                                   Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey
+                                                   Hash Cond: (l1.l_orderkey = l3.l_orderkey)
+                                                   Join Filter: (l3.l_suppkey <> l1.l_suppkey)
+                                                   ->  Hash Join  (cost=369.82..147586.63 rows=33339 width=34)
+                                                         Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey
+                                                         Hash Cond: (l1.l_suppkey = supplier.s_suppkey)
+                                                         ->  Parallel Seq Scan on public.lineitem l1  (cost=0.00..143757.92 rows=833465 width=8)
+                                                               Output: l1.l_orderkey, l1.l_partkey, l1.l_suppkey, l1.l_linenumber, l1.l_quantity, l1.l_extendedprice, l1.l_discount, l1.l_tax, l1.l_returnflag, l1.l_linestatus, l1.l_shipdate, l1.l_commitdate, l1.l_receiptdate, l1.l_shipinstruct, l1.l_shipmode, l1.l_comment
+                                                               Filter: (l1.l_receiptdate > l1.l_commitdate)
+                                                         ->  Hash  (cost=364.82..364.82 rows=400 width=30)
+                                                               Output: supplier.s_name, supplier.s_suppkey
+                                                               ->  Hash Join  (cost=1.32..364.82 rows=400 width=30)
+                                                                     Output: supplier.s_name, supplier.s_suppkey
+                                                                     Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                                                     ->  Seq Scan on public.supplier  (cost=0.00..322.00 rows=10000 width=34)
+                                                                           Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                                                     ->  Hash  (cost=1.31..1.31 rows=1 width=4)
+                                                                           Output: nation.n_nationkey
+                                                                           ->  Seq Scan on public.nation  (cost=0.00..1.31 rows=1 width=4)
+                                                                                 Output: nation.n_nationkey
+                                                                                 Filter: (nation.n_name = 'SAUDI ARABIA'::bpchar)
+                                                   ->  Parallel Hash  (cost=143757.92..143757.92 rows=833465 width=8)
+                                                         Output: l3.l_orderkey, l3.l_suppkey
+                                                         ->  Parallel Seq Scan on public.lineitem l3  (cost=0.00..143757.92 rows=833465 width=8)
+                                                               Output: l3.l_orderkey, l3.l_suppkey
+                                                               Filter: (l3.l_receiptdate > l3.l_commitdate)
+                                             ->  Seq Scan on public.lineitem l2  (cost=0.00..172512.44 rows=6000944 width=8)
+                                                   Output: l2.l_orderkey, l2.l_partkey, l2.l_suppkey, l2.l_linenumber, l2.l_quantity, l2.l_extendedprice, l2.l_discount, l2.l_tax, l2.l_returnflag, l2.l_linestatus, l2.l_shipdate, l2.l_commitdate, l2.l_receiptdate, l2.l_shipinstruct, l2.l_shipmode, l2.l_comment
+ Query Identifier: -770862387294320537
+ JIT:
+   Functions: 53
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+(58 rows)
+

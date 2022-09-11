@@ -1,0 +1,117 @@
+select
+        s_acctbal,
+        s_name,
+        n_name,
+        p_partkey,
+        p_mfgr,
+        s_address,
+        s_phone,
+        s_comment
+from
+        part,
+        supplier,
+        partsupp,
+        nation,
+        region
+where
+        p_partkey = ps_partkey
+        and s_suppkey = ps_suppkey
+        and p_size = 15
+        and p_type like '%BRASS'
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and r_name = 'EUROPE'
+        and ps_supplycost = (
+                select
+                        min(ps_supplycost)
+                from
+                        partsupp,
+                        supplier,
+                        nation,
+                        region
+                where
+                        p_partkey = ps_partkey
+                        and s_suppkey = ps_suppkey
+                        and s_nationkey = n_nationkey
+                        and n_regionkey = r_regionkey
+                        and r_name = 'EUROPE'
+        )
+order by
+        s_acctbal desc,
+        n_name,
+        s_name,
+        p_partkey
+limit 100;
+                                                                                              QUERY PLAN                                                                                               
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=10041001.13..10041001.13 rows=1 width=192)
+   Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
+   ->  Sort  (cost=10041001.13..10041001.13 rows=1 width=192)
+         Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
+         Sort Key: supplier.s_acctbal DESC, nation.n_name, supplier.s_name, part.p_partkey
+         ->  Hash Join  (cost=36765.03..10041001.12 rows=1 width=192)
+               Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
+               Hash Cond: ((part.p_partkey = partsupp.ps_partkey) AND ((SubPlan 1) = partsupp.ps_supplycost))
+               ->  Seq Scan on public.part  (cost=0.00..7097.00 rows=715 width=30)
+                     Output: part.p_partkey, part.p_mfgr
+                     Filter: (((part.p_type)::text ~~ '%BRASS'::text) AND (part.p_size = 15))
+               ->  Hash  (cost=30458.03..30458.03 rows=160000 width=172)
+                     Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, partsupp.ps_partkey, partsupp.ps_supplycost, nation.n_name
+                     ->  Hash Join  (cost=407.03..30458.03 rows=160000 width=172)
+                           Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, partsupp.ps_partkey, partsupp.ps_supplycost, nation.n_name
+                           Hash Cond: (partsupp.ps_suppkey = supplier.s_suppkey)
+                           ->  Seq Scan on public.partsupp  (cost=0.00..25451.00 rows=800000 width=14)
+                                 Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                           ->  Hash  (cost=382.03..382.03 rows=2000 width=166)
+                                 Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, supplier.s_suppkey, nation.n_name
+                                 ->  Hash Join  (cost=2.53..382.03 rows=2000 width=166)
+                                       Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, supplier.s_suppkey, nation.n_name
+                                       Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                       ->  Seq Scan on public.supplier  (cost=0.00..322.00 rows=10000 width=144)
+                                             Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                       ->  Hash  (cost=2.47..2.47 rows=5 width=30)
+                                             Output: nation.n_name, nation.n_nationkey
+                                             ->  Hash Join  (cost=1.07..2.47 rows=5 width=30)
+                                                   Output: nation.n_name, nation.n_nationkey
+                                                   Hash Cond: (nation.n_regionkey = region.r_regionkey)
+                                                   ->  Seq Scan on public.nation  (cost=0.00..1.25 rows=25 width=34)
+                                                         Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                                                   ->  Hash  (cost=1.06..1.06 rows=1 width=4)
+                                                         Output: region.r_regionkey
+                                                         ->  Seq Scan on public.region  (cost=0.00..1.06 rows=1 width=4)
+                                                               Output: region.r_regionkey
+                                                               Filter: (region.r_name = 'EUROPE'::bpchar)
+               SubPlan 1
+                 ->  Aggregate  (cost=27953.04..27953.05 rows=1 width=32)
+                       Output: min(partsupp_1.ps_supplycost)
+                       ->  Nested Loop  (cost=2.53..27953.04 rows=1 width=6)
+                             Output: partsupp_1.ps_supplycost
+                             Join Filter: (supplier_1.s_suppkey = partsupp_1.ps_suppkey)
+                             ->  Hash Join  (cost=2.53..382.03 rows=2000 width=4)
+                                   Output: supplier_1.s_suppkey
+                                   Hash Cond: (supplier_1.s_nationkey = nation_1.n_nationkey)
+                                   ->  Seq Scan on public.supplier supplier_1  (cost=0.00..322.00 rows=10000 width=8)
+                                         Output: supplier_1.s_suppkey, supplier_1.s_name, supplier_1.s_address, supplier_1.s_nationkey, supplier_1.s_phone, supplier_1.s_acctbal, supplier_1.s_comment
+                                   ->  Hash  (cost=2.47..2.47 rows=5 width=4)
+                                         Output: nation_1.n_nationkey
+                                         ->  Hash Join  (cost=1.07..2.47 rows=5 width=4)
+                                               Output: nation_1.n_nationkey
+                                               Hash Cond: (nation_1.n_regionkey = region_1.r_regionkey)
+                                               ->  Seq Scan on public.nation nation_1  (cost=0.00..1.25 rows=25 width=8)
+                                                     Output: nation_1.n_nationkey, nation_1.n_name, nation_1.n_regionkey, nation_1.n_comment
+                                               ->  Hash  (cost=1.06..1.06 rows=1 width=4)
+                                                     Output: region_1.r_regionkey
+                                                     ->  Seq Scan on public.region region_1  (cost=0.00..1.06 rows=1 width=4)
+                                                           Output: region_1.r_regionkey
+                                                           Filter: (region_1.r_name = 'EUROPE'::bpchar)
+                             ->  Materialize  (cost=0.00..27451.02 rows=4 width=10)
+                                   Output: partsupp_1.ps_supplycost, partsupp_1.ps_suppkey
+                                   ->  Seq Scan on public.partsupp partsupp_1  (cost=0.00..27451.00 rows=4 width=10)
+                                         Output: partsupp_1.ps_supplycost, partsupp_1.ps_suppkey
+                                         Filter: (part.p_partkey = partsupp_1.ps_partkey)
+ Query Identifier: -7159325516120221136
+ JIT:
+   Functions: 75
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+(69 rows)
+
