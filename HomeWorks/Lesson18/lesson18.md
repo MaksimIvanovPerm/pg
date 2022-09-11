@@ -114,7 +114,22 @@ sudo dpkg -i 1.deb
 
 пг-кластер: полностью дефолтный.
 Выбрал и сохранил, из скрипта, `tpch_queries.sql` запросы в отдельные скрипты, с именами `Q{1..22}.sql`
-Запустил, на выполнение, таким образом:
+Зачем сделал именно так, почему не просто запустил, на выполнение `tpch_queries.sql`
+Запускал.
+Обнаружил что psql, при не нулевом значении своего параметра `FETCH_COUNT` (а он по умолчанию 100), оформляет каждый запрос как курсор, напрмиер:
+```sql
+DECLARE _psql_cursor NO SCROLL CURSOR FOR select cntrycode, count(*) as numcust, sum(c_acctbal) as totacctbal from ( select substring(c_phone from 1 for 2) as cntrycode, c_acctbal from customer where substring(c_phone from 1 for 2) in ('13', '31', '23', '29', '30', '18', '17') and c_acctbal > ( select avg(c_acctbal) from customer where c_acctbal > 0.00 and substring(c_phone from 1 for 2) in ('13', '31', '23', '29', '30', '18', '17') ) and not exists ( select * from orders where o_custkey = c_custkey ) ) as custsale group by cntrycode order by cntrycode
+```
+
+И потом получает, от сервера субд, пачками резалт-сет запроса, в виде:
+```sql
+FETCH FORWARD 100 FROM _psql_cursor
+```
+Т.е. вот этот FETCH-запрос - оказывается топовым, по времени выполнения.
+
+Поэтому выставил, в `~/.psqlrc` настройку `\set FETCH_COUNT 0` и попытался сэкономить общее время на выполнение tpc-h-теста, распараллелив выполнение его sql-команд.
+pg_profile-расширение - всё равно потом покажет: какой sql-запрос как выполнялся, в смысле временных/ресурсных затрат.
+Т.е. запустил, на выполнение, скрпиты `Q{1..22}.sql` таким образом:
 ```shell
 psql -c 'SELECT take_sample()'
 for i in {1..22}; do
@@ -127,3 +142,18 @@ psql -c 'SELECT take_sample()'
 Так оно проработало >18-ть часов и выполнения запросов `Q17,Q20,Q21` я так и не дождался, канселировал, эти запросы, с помощью `pgcenter` (т.е.: по `pg_cancel_backend`)
 
 Отчёт, по этой попытке выполнения теста: [report_2_3.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson18/report_2_3.html)
+
+Топ-ы, по убыванию времени выполнения: 
+Запрос Q20 - в pg_profiler-отчёт не вошёл.
+158c5f764abfeff - это Q21.sql
+68d11bd34ddd94d9 - это Q17.sql
+f8a09ac6153112a5 - это Q2.sql
+
+Собрал эксплайн-данные о том как оптимизируются, в текущих условиях, эти запросы, таким образом:
+```shell
+psql -d tpch -f $DSS_PATH/Q17.sql -o $DSS_PATH/Q17.explain
+```
+[Q20.explain](/HomeWorks/Lesson18/Q20.explain)
+[Q21.explain](/HomeWorks/Lesson18/Q21.explain)
+[Q17.explain](/HomeWorks/Lesson18/Q17.explain)
+[Q2.explain](/HomeWorks/Lesson18/Q2.explain)
