@@ -148,8 +148,47 @@ psql -c 'SELECT take_sample()'
 158c5f764abfeff - это Q21.sql
 68d11bd34ddd94d9 - это Q17.sql
 f8a09ac6153112a5 - это Q2.sql
+Тексты запросов в скрипте [tpch_queries.sql](/HomeWorks/Lesson18/tpch_queries.sql)
 
-Собрал эксплайн-данные о том как оптимизируются, в текущих условиях, эти запросы, таким образом:
+Ну. Понятно что - плохо всё.
+Прежде всего, до какого либо рассмотрения проблемных запросов, абслютно не включая голову обвешал табличную модель, согласно определениям ER-диаграммы, первичными/внешними ключами и заиндексировал все внешние ключи.
+Получился такой скрипт:
+```sql
+alter table lineitem add constraint lineitem_pkey primary key (l_orderkey, l_linenumber);
+alter table nation add constraint nation_pkey primary key (n_nationkey); 
+alter table part add constraint part_kpey primary key (p_partkey);
+alter table supplier add constraint supplier_pkey primary key (s_suppkey);
+alter table customer add constraint customer_pkey primary key (c_custkey);
+alter table orders add constraint orders_pkey primary key (o_orderkey);
+alter table partsupp add constraint partsupp_pkey primary key (ps_partkey, ps_suppkey);
+alter table region add constraint region_pkey primary key (r_regionkey);
+
+alter table supplier add constraint supplier_nation_fkey foreign key (s_nationkey) references nation(n_nationkey);
+create index supplier_nation_fkey_idx on supplier(s_nationkey);
+
+alter table partsupp add constraint partsupp_part_fkey foreign key (ps_partkey) references part(p_partkey);
+create index partsupp_part_fkey_idx on partsupp(ps_partkey);
+
+alter table partsupp add constraint partsupp_supplier_fkey foreign key (ps_suppkey) references supplier(s_suppkey);
+create index partsupp_supplier_fkey_idx on partsupp(ps_suppkey);
+
+alter table customer add constraint customer_nation_fkey foreign key (c_nationkey) references nation(n_nationkey);
+create index customer_nation_fkey_idx on customer(c_nationkey);
+
+alter table orders add constraint orders_customer_fkey foreign key (o_custkey) references customer(c_custkey);
+create index orders_customer_fkey_idx on orders(o_custkey);
+
+alter table lineitem add constraint lineitem_orders_fkey foreign key (l_orderkey) references orders(o_orderkey);
+create index lineitem_orders_fkey_idx on lineitem(l_orderkey);
+
+alter table lineitem add constraint lineitem_partsupp_fkey foreign key (l_partkey,l_suppkey) references partsupp(ps_partkey,ps_suppkey);
+create index lineitem_partsupp_fkey_idx on lineitem(l_partkey,l_suppkey);
+
+alter table nation add constraint nation_region_fkey foreign key (n_regionkey) references region(r_regionkey);
+create index nation_region_fkey_idx on nation(n_regionkey);
+```
+
+Дальше собрал эксплайн-данные о том как оптимизируются, в текущих условиях, эти запросы, таким образом:
 ```shell
 psql -d tpch -f $DSS_PATH/Q17.sql -o $DSS_PATH/Q17.explain
 ```
@@ -159,3 +198,47 @@ psql -d tpch -f $DSS_PATH/Q17.sql -o $DSS_PATH/Q17.explain
 |[Q21.explain](/HomeWorks/Lesson18/Q21.explain)|
 |[Q17.explain](/HomeWorks/Lesson18/Q17.explain)|
 |[Q2.explain](/HomeWorks/Lesson18/Q2.explain)|
+
+И начал разглядывать эти данные.
+Довольно быстро стало понятно что надо будет смотреть на стат-свойства полей таблиц, для того чтобы решать - есть/не есть смысл вешать на это поле индкес.
+Т.е.: насколько оно, какое то поле - уникальное.
+Тут пользовался таким запросом:
+```sql
+select  ps.attname
+       ,ps.null_frac
+       ,ps.n_distinct
+       ,ps.most_common_vals
+       ,ps.most_common_freqs
+       ,ps.most_common_elems
+       ,ps.most_common_elem_freqs
+from pg_catalog.pg_stats ps
+where 1=1
+  and ps.schemaname='public'
+  and ps.tablename='lineitem'
+  and ps.attname in ('l_quantity', 'l_partkey', 'l_suppkey', 'l_shipdate')
+;
+```
+
+1. Замечания по [Q20.explain](/HomeWorks/Lesson18/Q20.explain)
+Тут явно напрашивается индекс на `partsupp.ps_partkey part.p_name` поля
+Закрывается fk-индексами `partsupp_part_fkey_idx, partsupp_supplier_fkey_idx`
+А ещё, для подзапроса с `lineitem`, чувствую что будет полезно сделать что то типа index-query-covering
+У `lineitem` - все поля not null, для индексного доступа это - замечательно.
+В чистом виде IQC тут не получится, но, по индексации внешних ключей индекс на `l_partkey, l_suppkey` - уже есть.
+Ещё можно попробовать заиндексировать `l_shipdate,l_quantity` композитным индексом и именно в такой пос-ти столбцов.
+Т.е.: `create index lineitem_l_shipdate_l_quantity_idx on lineitem(l_shipdate,l_quantity);`
+2. Замечания по [Q21.explain](/HomeWorks/Lesson18/Q21.explain)
+Тут однозначно надо индексировать поля по которым работают коррелированные подзапросы.
+Т.е. поля `lineitem.l_orderkey, lineitem.l_suppkey`
+Индекс на поле `L_ORDERKEY` - закрывается fk-индексом `lineitem_orders_fkey_idx`
+Индекс на `nation.name` - не нужен, таблица всего 25 строк.
+Индекс под `orders.o_orderstatus = 'F'`, увы, не поможет - очень не уникальное поле.
+3. Замечания по [Q17.explain](/HomeWorks/Lesson18/Q17.explain)
+Однозначно индексировать `lineitem.l_partkey` - правда это уже закрывается fkиндексом `lineitem_partsupp_fkey`
+C уникальностью столбцов `part.(p_container|p_brand)` - увы, всё печально.
+4. Замечания по [Q2.explain](/HomeWorks/Lesson18/Q2.explain)
+Может поможет такой индекс, хотя с уникальностью значений этого столбца - не очень.
+`CREATE INDEX IDX_PART_P_SIZE ON PART(P_SIZE);`
+
+В итоге, почти все потребности - закрылись индексами на fk-столбцы.
+От себя создавал только `CREATE INDEX IDX_PART_P_SIZE ON PART(P_SIZE)`
