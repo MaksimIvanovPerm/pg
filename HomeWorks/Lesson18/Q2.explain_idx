@@ -1,0 +1,66 @@
+                                                                                                 QUERY PLAN                                                                                                  
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=50284.15..50284.15 rows=1 width=192)
+   Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
+   ->  Sort  (cost=50284.15..50284.15 rows=1 width=192)
+         Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
+         Sort Key: supplier.s_acctbal DESC, nation.n_name, supplier.s_name, part.p_partkey
+         ->  Hash Join  (cost=26580.68..50284.14 rows=1 width=192)
+               Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
+               Hash Cond: ((part.p_partkey = partsupp.ps_partkey) AND ((SubPlan 1) = partsupp.ps_supplycost))
+               ->  Bitmap Heap Scan on public.part  (cost=45.07..4289.84 rows=715 width=30)
+                     Output: part.p_partkey, part.p_mfgr
+                     Recheck Cond: (part.p_size = 15)
+                     Filter: ((part.p_type)::text ~~ '%BRASS'::text)
+                     ->  Bitmap Index Scan on idx_part_p_size  (cost=0.00..44.89 rows=3813 width=0)
+                           Index Cond: (part.p_size = 15)
+               ->  Hash  (cost=20228.61..20228.61 rows=160000 width=172)
+                     Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, partsupp.ps_partkey, partsupp.ps_supplycost, nation.n_name
+                     ->  Nested Loop  (cost=1.99..20228.61 rows=160000 width=172)
+                           Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, partsupp.ps_partkey, partsupp.ps_supplycost, nation.n_name
+                           ->  Nested Loop  (cost=1.56..480.32 rows=2000 width=166)
+                                 Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, supplier.s_suppkey, nation.n_name
+                                 Join Filter: (nation.n_regionkey = region.r_regionkey)
+                                 ->  Seq Scan on public.region  (cost=0.00..1.06 rows=1 width=4)
+                                       Output: region.r_regionkey, region.r_name, region.r_comment
+                                       Filter: (region.r_name = 'EUROPE'::bpchar)
+                                 ->  Hash Join  (cost=1.56..354.26 rows=10000 width=170)
+                                       Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, supplier.s_suppkey, nation.n_name, nation.n_regionkey
+                                       Inner Unique: true
+                                       Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                       ->  Seq Scan on public.supplier  (cost=0.00..322.00 rows=10000 width=144)
+                                             Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                       ->  Hash  (cost=1.25..1.25 rows=25 width=34)
+                                             Output: nation.n_name, nation.n_nationkey, nation.n_regionkey
+                                             ->  Seq Scan on public.nation  (cost=0.00..1.25 rows=25 width=34)
+                                                   Output: nation.n_name, nation.n_nationkey, nation.n_regionkey
+                           ->  Index Scan using partsupp_supplier_fkey_idx on public.partsupp  (cost=0.42..9.07 rows=80 width=14)
+                                 Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                                 Index Cond: (partsupp.ps_suppkey = supplier.s_suppkey)
+               SubPlan 1
+                 ->  Aggregate  (cost=43.45..43.46 rows=1 width=32)
+                       Output: min(partsupp_1.ps_supplycost)
+                       ->  Nested Loop  (cost=0.85..43.45 rows=1 width=6)
+                             Output: partsupp_1.ps_supplycost
+                             Join Filter: (nation_1.n_regionkey = region_1.r_regionkey)
+                             ->  Seq Scan on public.region region_1  (cost=0.00..1.06 rows=1 width=4)
+                                   Output: region_1.r_regionkey, region_1.r_name, region_1.r_comment
+                                   Filter: (region_1.r_name = 'EUROPE'::bpchar)
+                             ->  Nested Loop  (cost=0.85..42.33 rows=4 width=10)
+                                   Output: partsupp_1.ps_supplycost, nation_1.n_regionkey
+                                   Inner Unique: true
+                                   ->  Nested Loop  (cost=0.71..41.71 rows=4 width=10)
+                                         Output: partsupp_1.ps_supplycost, supplier_1.s_nationkey
+                                         Inner Unique: true
+                                         ->  Index Scan using partsupp_part_fkey_idx on public.partsupp partsupp_1  (cost=0.42..8.50 rows=4 width=10)
+                                               Output: partsupp_1.ps_partkey, partsupp_1.ps_suppkey, partsupp_1.ps_availqty, partsupp_1.ps_supplycost, partsupp_1.ps_comment
+                                               Index Cond: (partsupp_1.ps_partkey = part.p_partkey)
+                                         ->  Index Scan using supplier_pkey on public.supplier supplier_1  (cost=0.29..8.30 rows=1 width=8)
+                                               Output: supplier_1.s_suppkey, supplier_1.s_name, supplier_1.s_address, supplier_1.s_nationkey, supplier_1.s_phone, supplier_1.s_acctbal, supplier_1.s_comment
+                                               Index Cond: (supplier_1.s_suppkey = partsupp_1.ps_suppkey)
+                                   ->  Index Scan using nation_pkey on public.nation nation_1  (cost=0.14..0.16 rows=1 width=8)
+                                         Output: nation_1.n_nationkey, nation_1.n_name, nation_1.n_regionkey, nation_1.n_comment
+                                         Index Cond: (nation_1.n_nationkey = supplier_1.s_nationkey)
+ Query Identifier: -7159325516120221136
+(62 rows)
+

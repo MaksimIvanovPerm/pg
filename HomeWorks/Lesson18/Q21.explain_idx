@@ -1,0 +1,59 @@
+                                                                                                                                                         QUERY PLAN                                                                                                                                                         
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=169775.73..169775.73 rows=1 width=34)
+   Output: supplier.s_name, (count(*))
+   ->  Sort  (cost=169775.73..169775.73 rows=1 width=34)
+         Output: supplier.s_name, (count(*))
+         Sort Key: (count(*)) DESC, supplier.s_name
+         ->  GroupAggregate  (cost=169775.70..169775.72 rows=1 width=34)
+               Output: supplier.s_name, count(*)
+               Group Key: supplier.s_name
+               ->  Sort  (cost=169775.70..169775.70 rows=1 width=26)
+                     Output: supplier.s_name
+                     Sort Key: supplier.s_name
+                     ->  Nested Loop  (cost=1250.87..169775.69 rows=1 width=26)
+                           Output: supplier.s_name
+                           Inner Unique: true
+                           ->  Nested Loop Semi Join  (cost=1250.44..169775.18 rows=1 width=34)
+                                 Output: supplier.s_name, l1.l_orderkey, l2.l_orderkey
+                                 ->  Gather  (cost=1250.01..169774.19 rows=1 width=34)
+                                       Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey
+                                       Workers Planned: 2
+                                       ->  Nested Loop Anti Join  (cost=250.01..168774.09 rows=1 width=34)
+                                             Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey
+                                             ->  Hash Join  (cost=249.58..147467.94 rows=33340 width=34)
+                                                   Output: supplier.s_name, l1.l_suppkey, l1.l_orderkey
+                                                   Hash Cond: (l1.l_suppkey = supplier.s_suppkey)
+                                                   ->  Parallel Seq Scan on public.lineitem l1  (cost=0.00..143759.33 rows=833502 width=8)
+                                                         Output: l1.l_orderkey, l1.l_partkey, l1.l_suppkey, l1.l_linenumber, l1.l_quantity, l1.l_extendedprice, l1.l_discount, l1.l_tax, l1.l_returnflag, l1.l_linestatus, l1.l_shipdate, l1.l_commitdate, l1.l_receiptdate, l1.l_shipinstruct, l1.l_shipmode, l1.l_comment
+                                                         Filter: (l1.l_receiptdate > l1.l_commitdate)
+                                                   ->  Hash  (cost=244.58..244.58 rows=400 width=30)
+                                                         Output: supplier.s_name, supplier.s_suppkey
+                                                         ->  Nested Loop  (cost=7.38..244.58 rows=400 width=30)
+                                                               Output: supplier.s_name, supplier.s_suppkey
+                                                               ->  Seq Scan on public.nation  (cost=0.00..1.31 rows=1 width=4)
+                                                                     Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                                                                     Filter: (nation.n_name = 'SAUDI ARABIA'::bpchar)
+                                                               ->  Bitmap Heap Scan on public.supplier  (cost=7.38..239.27 rows=400 width=34)
+                                                                     Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                                                                     Recheck Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                                                     ->  Bitmap Index Scan on supplier_nation_fkey_idx  (cost=0.00..7.29 rows=400 width=0)
+                                                                           Index Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                             ->  Index Scan using lineitem_orders_fkey_idx on public.lineitem l3  (cost=0.43..1.01 rows=5 width=8)
+                                                   Output: l3.l_orderkey, l3.l_partkey, l3.l_suppkey, l3.l_linenumber, l3.l_quantity, l3.l_extendedprice, l3.l_discount, l3.l_tax, l3.l_returnflag, l3.l_linestatus, l3.l_shipdate, l3.l_commitdate, l3.l_receiptdate, l3.l_shipinstruct, l3.l_shipmode, l3.l_comment
+                                                   Index Cond: (l3.l_orderkey = l1.l_orderkey)
+                                                   Filter: ((l3.l_receiptdate > l3.l_commitdate) AND (l3.l_suppkey <> l1.l_suppkey))
+                                 ->  Index Scan using lineitem_orders_fkey_idx on public.lineitem l2  (cost=0.43..0.98 rows=15 width=8)
+                                       Output: l2.l_orderkey, l2.l_partkey, l2.l_suppkey, l2.l_linenumber, l2.l_quantity, l2.l_extendedprice, l2.l_discount, l2.l_tax, l2.l_returnflag, l2.l_linestatus, l2.l_shipdate, l2.l_commitdate, l2.l_receiptdate, l2.l_shipinstruct, l2.l_shipmode, l2.l_comment
+                                       Index Cond: (l2.l_orderkey = l1.l_orderkey)
+                                       Filter: (l2.l_suppkey <> l1.l_suppkey)
+                           ->  Index Scan using orders_pkey on public.orders  (cost=0.43..0.51 rows=1 width=4)
+                                 Output: orders.o_orderkey, orders.o_custkey, orders.o_orderstatus, orders.o_totalprice, orders.o_orderdate, orders.o_orderpriority, orders.o_clerk, orders.o_shippriority, orders.o_comment
+                                 Index Cond: (orders.o_orderkey = l1.l_orderkey)
+                                 Filter: (orders.o_orderstatus = 'F'::bpchar)
+ Query Identifier: -770862387294320537
+ JIT:
+   Functions: 38
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+(55 rows)
+

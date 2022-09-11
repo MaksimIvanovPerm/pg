@@ -1,0 +1,39 @@
+                                                                                                                                                                                                 QUERY PLAN                                                                                                                                                                                                 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=88456.54..88456.81 rows=108 width=51)
+   Output: supplier.s_name, supplier.s_address
+   Sort Key: supplier.s_name
+   ->  Hash Semi Join  (cost=88213.18..88452.90 rows=108 width=51)
+         Output: supplier.s_name, supplier.s_address
+         Hash Cond: (supplier.s_suppkey = partsupp.ps_suppkey)
+         ->  Nested Loop  (cost=7.38..244.58 rows=400 width=55)
+               Output: supplier.s_name, supplier.s_address, supplier.s_suppkey
+               ->  Seq Scan on public.nation  (cost=0.00..1.31 rows=1 width=4)
+                     Output: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
+                     Filter: (nation.n_name = 'CANADA'::bpchar)
+               ->  Bitmap Heap Scan on public.supplier  (cost=7.38..239.27 rows=400 width=59)
+                     Output: supplier.s_suppkey, supplier.s_name, supplier.s_address, supplier.s_nationkey, supplier.s_phone, supplier.s_acctbal, supplier.s_comment
+                     Recheck Cond: (supplier.s_nationkey = nation.n_nationkey)
+                     ->  Bitmap Index Scan on supplier_nation_fkey_idx  (cost=0.00..7.29 rows=400 width=0)
+                           Index Cond: (supplier.s_nationkey = nation.n_nationkey)
+         ->  Hash  (cost=88172.13..88172.13 rows=2693 width=4)
+               Output: partsupp.ps_suppkey
+               ->  Nested Loop  (cost=0.42..88172.13 rows=2693 width=4)
+                     Output: partsupp.ps_suppkey
+                     ->  Seq Scan on public.part  (cost=0.00..6597.00 rows=2020 width=4)
+                           Output: part.p_partkey, part.p_name, part.p_mfgr, part.p_brand, part.p_type, part.p_size, part.p_container, part.p_retailprice, part.p_comment
+                           Filter: ((part.p_name)::text ~~ 'forest%'::text)
+                     ->  Index Scan using partsupp_part_fkey_idx on public.partsupp  (cost=0.42..40.37 rows=1 width=8)
+                           Output: partsupp.ps_partkey, partsupp.ps_suppkey, partsupp.ps_availqty, partsupp.ps_supplycost, partsupp.ps_comment
+                           Index Cond: (partsupp.ps_partkey = part.p_partkey)
+                           Filter: ((partsupp.ps_availqty)::numeric > (SubPlan 1))
+                           SubPlan 1
+                             ->  Aggregate  (cost=8.46..8.47 rows=1 width=32)
+                                   Output: (0.5 * sum(lineitem.l_quantity))
+                                   ->  Index Scan using lineitem_partsupp_fkey_idx on public.lineitem  (cost=0.43..8.46 rows=1 width=5)
+                                         Output: lineitem.l_orderkey, lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_linenumber, lineitem.l_quantity, lineitem.l_extendedprice, lineitem.l_discount, lineitem.l_tax, lineitem.l_returnflag, lineitem.l_linestatus, lineitem.l_shipdate, lineitem.l_commitdate, lineitem.l_receiptdate, lineitem.l_shipinstruct, lineitem.l_shipmode, lineitem.l_comment
+                                         Index Cond: ((lineitem.l_partkey = partsupp.ps_partkey) AND (lineitem.l_suppkey = partsupp.ps_suppkey))
+                                         Filter: ((lineitem.l_shipdate >= '1994-01-01'::date) AND (lineitem.l_shipdate < '1995-01-01 00:00:00'::timestamp without time zone))
+ Query Identifier: 1773794459088100553
+(35 rows)
+
