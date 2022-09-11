@@ -189,6 +189,7 @@ create index lineitem_partsupp_fkey_idx on lineitem(l_partkey,l_suppkey);
 
 alter table nation add constraint nation_region_fkey foreign key (n_regionkey) references region(r_regionkey);
 create index nation_region_fkey_idx on nation(n_regionkey);
+analyze verbose;
 ```
 
 Дальше собирал эксплайн-данные о том как оптимизируются, в текущих условиях, эти запросы, таким образом:
