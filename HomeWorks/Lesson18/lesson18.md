@@ -263,3 +263,26 @@ C уникальностью столбцов `part.(p_container|p_brand)` - у�
 |[Q2.explain_idx](/HomeWorks/Lesson18/Q2.explain_idx)|
 
 pg_profile-отчёт: [report_7_8.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson18/report_7_8.html)
+
+В секции `Top SQL by temp usage` этого отчёта усмотрел такой скл-запрос: `4941100895dac3dd`, это запрос `Q11` (можно найти в [tpch_queries.sql](/HomeWorks/Lesson18/tpch_queries.sql) по этому лейблу - `Q11`)
+Действиетльно, в плане выполнения этого запроса ([Q11.explain](/HomeWorks/Lesson18/Q11.explain)) есть такой этап:
+```
+->  HashAggregate  (cost=6404.24..7196.74 rows=10667 width=36) (actual time=174.264..195.432 rows=7601 loops=1)
+      Output: partsupp.ps_partkey, sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric))
+      Group Key: partsupp.ps_partkey
+      Filter: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric)) > $2)
+      Planned Partitions: 4  Batches: 5  Memory Usage: 4273kB  Disk Usage: 1032kB
+```
+Это про group-by предложение.
+Ну. Дефолтное значение `work_mem` - 4МБайта.
+Судя по тому сколько заспиллилось на диск - должно хватить что то в районе 8-16Мб.
+Сделал сессионную настройку:
+![1.png](/HomeWorks/Lesson18/1.png)
+И да, помогло ([Q11.setted_explain](/HomeWorks/Lesson18/Q11.setted_explain)): 
+```
+HashAggregate  (cost=4514.24..4994.24 rows=10667 width=36) (actual time=100.634..116.971 rows=7601 loops=1)
+  Output: partsupp.ps_partkey, sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric))
+  Group Key: partsupp.ps_partkey
+  Filter: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::numeric)) > $2)
+  Batches: 1  Memory Usage: 17937kB
+```
