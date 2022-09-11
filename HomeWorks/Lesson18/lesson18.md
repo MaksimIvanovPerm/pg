@@ -99,3 +99,5 @@ order by t.reltuples desc
  public  | postgres.region   |                5 |      8192 |      8192
 ```
 
+Дальше - установка расширения `pg_profile`, [шпаргалка](https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson11/lesson11.md) есть в ДЗ к 11-му занятию.
+
