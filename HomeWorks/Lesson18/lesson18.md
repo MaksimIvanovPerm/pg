@@ -278,6 +278,7 @@ pg_profile-отчёт: [report_7_8.html](https://htmlpreview.github.io/?https://
 Судя по тому сколько заспиллилось на диск - должно хватить что то в районе 8-16Мб.
 Сделал сессионную настройку:
 ![1.png](/HomeWorks/Lesson18/1.png)
+
 И да, помогло ([Q11.setted_explain](/HomeWorks/Lesson18/Q11.setted_explain)): 
 ```
 HashAggregate  (cost=4514.24..4994.24 rows=10667 width=36) (actual time=100.634..116.971 rows=7601 loops=1)
