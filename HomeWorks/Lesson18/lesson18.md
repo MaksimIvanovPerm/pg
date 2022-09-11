@@ -259,5 +259,7 @@ C уникальностью столбцов `part.(p_container|p_brand)` - у�
 | -------------- |
 |[Q20.explain_idx](/HomeWorks/Lesson18/Q20.explain_idx)|
 |[Q21.explain_idx](/HomeWorks/Lesson18/Q21.explain_idx)|
-|[Q17.explain_idx](/HomeWorks/Lesson18/Q17.explain_idx))|
+|[Q17.explain_idx](/HomeWorks/Lesson18/Q17.explain_idx)|
 |[Q2.explain_idx](/HomeWorks/Lesson18/Q2.explain_idx)|
+
+pg_profile-отчёт: [report_7_8.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson18/report_7_8.html)
