@@ -125,4 +125,5 @@ wait
 psql -c 'SELECT take_sample()'
 ```
 Так оно проработало >18-ть часов и выполнения запросов `Q17,Q20,Q21` я так и не дождался, канселировал, эти запросы, с помощью `pgcenter` (т.е.: по `pg_cancel_backend`)
-Отчёт, по этой попытке выполнения теста: [report_2_3.html](/HomeWorks/Lesson18/report_2_3.html)
+
+Отчёт, по этой попытке выполнения теста: [report_2_3.html](https://htmlpreview.github.io/?https://github.com/MaksimIvanovPerm/pg/blob/main/HomeWorks/Lesson18/report_2_3.html)
