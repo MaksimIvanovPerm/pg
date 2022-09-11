@@ -291,12 +291,76 @@ HashAggregate  (cost=4514.24..4994.24 rows=10667 width=36) (actual time=100.634.
 ДЗ
 1. `Реализовать прямое соединение двух или более таблиц`
    ![hw1.png](/HomeWorks/Lesson18/hw1.png)
-3. `Реализовать левостороннее (или правостороннее) соединение двух или более таблиц`
+2. `Реализовать левостороннее (или правостороннее) соединение двух или более таблиц`
    ![hw2.png](/HomeWorks/Lesson18/hw2.png)
-5. `Реализовать кросс соединение двух или более таблиц`
+3. `Реализовать кросс соединение двух или более таблиц`
    ![hw3.png](/HomeWorks/Lesson18/hw3.png)
-7. `Реализовать полное соединение двух или более таблиц`
+4. `Реализовать полное соединение двух или более таблиц`
    ![hw4.png](/HomeWorks/Lesson18/hw4.png)
-9. `Реализовать запрос, в котором будут использованы разные типы соединений`
+5. `Реализовать запрос, в котором будут использованы разные типы соединений`
    ![hw5.png](/HomeWorks/Lesson18/hw5.png)
+6. `К работе приложить структуру таблиц, для которых выполнялись соединения`
+   ```sql
+   [local]:5432 #postgres@tpch > \d supplier
+                           Table "public.supplier"
+      Column    |          Type          | Collation | Nullable | Default
+   -------------+------------------------+-----------+----------+---------
+    s_suppkey   | integer                |           | not null |
+    s_name      | character(25)          |           | not null |
+    s_address   | character varying(40)  |           | not null |
+    s_nationkey | integer                |           | not null |
+    s_phone     | character(15)          |           | not null |
+    s_acctbal   | numeric(15,2)          |           | not null |
+    s_comment   | character varying(101) |           | not null |
+   Indexes:
+       "supplier_pkey" PRIMARY KEY, btree (s_suppkey)
+       "supplier_nation_fkey_idx" btree (s_nationkey)
+   Foreign-key constraints:
+       "supplier_nation_fkey" FOREIGN KEY (s_nationkey) REFERENCES nation(n_nationkey)
+   Referenced by:
+       TABLE "partsupp" CONSTRAINT "partsupp_supplier_fkey" FOREIGN KEY (ps_suppkey) REFERENCES supplier(s_suppkey)
    
+   [local]:5432 #postgres@tpch > \d partsupp
+                            Table "public.partsupp"
+       Column     |          Type          | Collation | Nullable | Default
+   ---------------+------------------------+-----------+----------+---------
+    ps_partkey    | integer                |           | not null |
+    ps_suppkey    | integer                |           | not null |
+    ps_availqty   | integer                |           | not null |
+    ps_supplycost | numeric(15,2)          |           | not null |
+    ps_comment    | character varying(199) |           | not null |
+   Indexes:
+       "partsupp_pkey" PRIMARY KEY, btree (ps_partkey, ps_suppkey)
+       "partsupp_part_fkey_idx" btree (ps_partkey)
+       "partsupp_supplier_fkey_idx" btree (ps_suppkey)
+   Foreign-key constraints:
+       "partsupp_part_fkey" FOREIGN KEY (ps_partkey) REFERENCES part(p_partkey)
+       "partsupp_supplier_fkey" FOREIGN KEY (ps_suppkey) REFERENCES supplier(s_suppkey)
+   Referenced by:
+       TABLE "lineitem" CONSTRAINT "lineitem_partsupp_fkey" FOREIGN KEY (l_partkey, l_suppkey) REFERENCES partsupp(ps_partkey, ps_suppkey)
+   
+   [local]:5432 #postgres@tpch > \d nation
+                            Table "public.nation"
+      Column    |          Type          | Collation | Nullable | Default
+   -------------+------------------------+-----------+----------+---------
+    n_nationkey | integer                |           | not null |
+    n_name      | character(25)          |           | not null |
+    n_regionkey | integer                |           | not null |
+    n_comment   | character varying(152) |           |          |
+   Indexes:
+       "nation_pkey" PRIMARY KEY, btree (n_nationkey)
+       "nation_region_fkey_idx" btree (n_regionkey)
+   Foreign-key constraints:
+       "nation_region_fkey" FOREIGN KEY (n_regionkey) REFERENCES region(r_regionkey)
+   Referenced by:
+       TABLE "customer" CONSTRAINT "customer_nation_fkey" FOREIGN KEY (c_nationkey) REFERENCES nation(n_nationkey)
+       TABLE "supplier" CONSTRAINT "supplier_nation_fkey" FOREIGN KEY (s_nationkey) REFERENCES nation(n_nationkey)
+   
+   ```
+   7. `Придумайте 3 своих метрики на основе показанных представлений`
+      Вопрос слишком общий, на него не возможно ответить с какой то конкретикой.
+      Если это oltp-нагрузка, тогда: tps - кол-во транзакций/сек.
+      Если это olap-нагрузка, тогда: qps - кол-во запросов/сек.
+      Потому что конечных пользователей субд, бизнес, всегда интересует доступность и продуктивность работы сервиса субд.
+      В этом смысле - ну ещё среднее время работы субд на до планового/не планового прерывания, и среднее время недоступности.
+      От чего конкретно зависят эти 3, или 4 метрики - в случае каждой конкретной инсталяции будет зависеть от какой то своей специфики.
