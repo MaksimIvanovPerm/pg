@@ -40,3 +40,62 @@ qgen -v -c -s 2 -d | sed 's/limit -1//' | sed 's/day (3)/day/' > "$DSS_PATH/tpch
 
 В директории `DSS_PATH` нагеренятся файлы с расширением `.tbl` - это csv-like файлы с данным, для таблиц в бд.
 Так же сгенерируется sql-скрипт `$DSS_PATH/tpch_queries.sql` ([tpch_queries.sql](/HomeWorks/Lesson18/tpch_queries.sql)): в нём 22 sql-запроса к табличной модели.
+
+Загрузка данных, создал отдельную бд под табличную модель - `tpch`:
+```shell
+cat << __EOF__ > /etc/postgresql/14/main/additional.conf
+full_page_writes=off
+synchronous_commit='off'
+fsync='off'
+__EOF__
+sed -i -e "s/.*include_if_exists.*/include_if_exists=\'additional.conf\'/" $PGCONF; grep "include_if_exists" $PGCONF 
+restart_cluster
+psql -c "select name, setting from pg_settings where name in ('wal_level','full_page_writes','synchronous_commit','fsync') order by name;" 
+
+psql -c "create database tpch;"
+psql -d tpch -f "$DSS_CONFIG/dss.ddl"
+cd "$DSS_PATH"
+for i in `ls *.tbl`; do
+  table=${i/.tbl/}
+  echo "Loading $table..."
+  #sed 's/|$//' $i > /tmp/$i
+  psql -d tpch -q -c "TRUNCATE $table"
+  psql -d tpch -c "\\copy $table FROM '$DSS_PATH/$i' CSV DELIMITER '|'"
+done
+
+if [ -f "/etc/postgresql/14/main/additional.conf" ]; then
+   rm -f "/etc/postgresql/14/main/additional.conf"
+   restart_cluster
+   psql -c "select name, setting from pg_settings where name in ('wal_level','full_page_writes','synchronous_commit','fsync') order by name;" 
+fi
+psql -d tpch -c "analyze verbose;"
+```
+
+Размеры таблиц:
+```sql
+select  n.nspname
+       ,pa.rolname||'.'||t.relname as db_object
+       ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
+       ,pg_table_size(t.oid) as t_size
+       ,pg_total_relation_size(t.oid) as ti_size
+from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
+where 1=1
+  and t.relkind='r'
+  and t.relnamespace=n.oid
+  and t.relowner=pa.oid
+  and t.relname in ('supplier','region','part','partsupp','orders','nation','lineitem','customer')
+order by t.reltuples desc
+;
+
+ nspname |     db_object     |  est_rows        |  t_size   |  ti_size
+---------+-------------------+------------------+-----------+-----------
+ public  | postgres.lineitem |          6000940 | 921903104 | 921903104
+ public  | postgres.orders   |          1500000 | 213852160 | 213852160
+ public  | postgres.partsupp |           800000 | 143024128 | 143024128
+ public  | postgres.part     |           200000 |  33603584 |  33603584
+ public  | postgres.customer |           150000 |  29401088 |  29401088
+ public  | postgres.supplier |            10000 |   1851392 |   1851392
+ public  | postgres.nation   |               25 |      8192 |      8192
+ public  | postgres.region   |                5 |      8192 |      8192
+```
+
