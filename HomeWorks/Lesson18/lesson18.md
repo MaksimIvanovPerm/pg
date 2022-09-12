@@ -224,7 +224,7 @@ where 1=1
 ;
 ```
 
-1. Замечания по [Q20.explain](/HomeWorks/Lesson18/Q20.explain) (текст запроса в файле)
+1. Замечания по [Q20.explain](/HomeWorks/Lesson18/Q20.explain) (тексты запросов добавил в файлы)
 Тут явно напрашивается индекс на `partsupp.ps_partkey part.p_name` поля
 Закрывается fk-индексами `partsupp_part_fkey_idx, partsupp_supplier_fkey_idx`
 А ещё, для подзапроса с `lineitem`, чувствую что будет полезно сделать что то типа index-query-covering
