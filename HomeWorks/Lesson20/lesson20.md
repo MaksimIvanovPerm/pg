@@ -135,6 +135,101 @@ sudo su postgre
 wget -O 1.zip https://edu.postgrespro.com/demo-small-en.zip
 unzip 1.zip
 psql -f demo-small-en-20170815.sql
+psql -d demo << __EOF__
+\conninfo
+analyze verbose;
+select  n.nspname
+       ,pa.rolname||'.'||t.relname as db_object
+       ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
+       ,pg_table_size(t.oid) as t_size
+       ,pg_total_relation_size(t.oid) as ti_size
+from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
+where 1=1
+  and t.relkind='r'
+  and t.relnamespace=n.oid
+  and t.relowner=pa.oid
+  and t.relname in ('aircrafts_data','airports_data','boarding_passes','bookings','flights','seats','ticket_flights','tickets')
+order by t.reltuples desc
+;
+__EOF__
 ```
 
+```
+ nspname  |        db_object         |     est_rows     |  t_size  |  ti_size
+----------+--------------------------+------------------+----------+-----------
+ bookings | postgres.ticket_flights  |          1045730 | 71442432 | 113917952
+ bookings | postgres.boarding_passes |           579686 | 34963456 |  84598784
+ bookings | postgres.tickets         |           366733 | 50380800 |  61972480
+ bookings | postgres.bookings        |           262788 | 13746176 |  19668992
+ bookings | postgres.flights         |            33121 |  3244032 |   5062656
+ bookings | postgres.seats           |             1339 |    98304 |    147456
+ bookings | postgres.airports_data   |              104 |    57344 |     73728
+ bookings | postgres.aircrafts_data  |                9 |    16384 |     32768
+(8 rows)
+```
 
+Самая большая таблица, правда она не именно `flights` называется, но, может быть это пгпро переделали так:
+```sql
+[local]:5432 #postgres@demo > \d ticket_flights
+                     Table "bookings.ticket_flights"
+     Column      |         Type          | Collation | Nullable | Default
+-----------------+-----------------------+-----------+----------+---------
+ ticket_no       | character(13)         |           | not null |
+ flight_id       | integer               |           | not null |
+ fare_conditions | character varying(10) |           | not null |
+ amount          | numeric(10,2)         |           | not null |
+Indexes:
+    "ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)
+Check constraints:
+    "ticket_flights_amount_check" CHECK (amount >= 0::numeric)
+    "ticket_flights_fare_conditions_check" CHECK (fare_conditions::text = ANY (ARRAY['Economy'::character varying::text, 'Comfort'::character varying::text, 'Business'::character varying::text]))
+Foreign-key constraints:
+    "ticket_flights_flight_id_fkey" FOREIGN KEY (flight_id) REFERENCES flights(flight_id)
+    "ticket_flights_ticket_no_fkey" FOREIGN KEY (ticket_no) REFERENCES tickets(ticket_no)
+Referenced by:
+    TABLE "boarding_passes" CONSTRAINT "boarding_passes_ticket_no_fkey" FOREIGN KEY (ticket_no, flight_id) REFERENCES ticket_flights(ticket_no, flight_id)
+
+[local]:5432 #postgres@demo >
+```
+
+Форен-кеи, конечно, будут мешаться, в любом случае.
+Поразглядвал [sql-запросы](https://postgrespro.com/docs/postgrespro/10/apjs05.html), к этой табличной схеме.
+Ну. `ticket_flights` - либо джойнится по полю `ticket_no`, либо фильтруется по этому полю, других вариантов нет.
+
+Есть вот такой sql-запрос:
+```sql
+psql -d demo << __EOF__ | tee /tmp/temp.txt
+explain (verbose true, format text, analyze true)
+SELECT   b.book_ref,
+         t.ticket_no,
+         t.passenger_id,
+         t.passenger_name,
+         tf.fare_conditions,
+         tf.amount,
+         f.scheduled_departure_local,
+         f.scheduled_arrival_local,
+         f.departure_city || ' (' || f.departure_airport || ')' AS departure,
+         f.arrival_city || ' (' || f.arrival_airport || ')' AS arrival,
+         f.status,
+         bp.seat_no
+FROM     bookings b
+         JOIN tickets t ON b.book_ref = t.book_ref
+         JOIN ticket_flights tf ON tf.ticket_no = t.ticket_no
+         JOIN flights_v f ON tf.flight_id = f.flight_id
+         LEFT JOIN boarding_passes bp ON tf.flight_id = bp.flight_id
+                                     AND tf.ticket_no = bp.ticket_no
+WHERE    b.book_ref = '_QWE12'
+ORDER BY t.ticket_no, f.scheduled_departure;
+\q
+__EOF__
+```
+Ну. Так то есть `"ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)`;
+И есть `"tickets_pkey" PRIMARY KEY, btree (ticket_no)` на таблицу `tickets`;
+Оно эти джойны - отлично подведёт под NL-вариант соединения, и `ticket_flights` по определению запроса - будет ведомым потоком.
+Для индексного доступа в таблицу - не важно, таблица секционирована/не секционирована.
+Т.е., если даже таблицу, как то побить на партиции - конкретно этот запрос, с большой ероятностью этого не заметит никак.
+[План выполнения](/HomeWorks/Lesson20/plan.txt) этого запроса.
+
+Однако, сказано побить, значит - побъём.
+Если и бить таблицу `ticket_flights` то на партиции по полю `ticket_no`
+Может быть по полям `ticket_no, flight_id`
