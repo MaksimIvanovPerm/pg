@@ -299,10 +299,12 @@ col2 | 366733
    Бикоз оф, ну если с range-секционированием - ещё такое прокатит, в общем случае, то как быть с листовым, или хаш-секционированием.
    А ещё могут хотеть сделать (ре)партиционирование именно для того чтобы большую исходную таблицу - побить на значительно меньшие куски.
    Т.е., в таком случае, априорно нельзя аттачить исходную таблицу, как одну партицию, в целевую таблицу.
-   Подозреваю что, в общем случае - придётся делать не аттач, а `create table <новая таблица> as select * from <старая таблица>;`
+   Подозреваю что, в общем случае - придётся делать не аттач, а `insert into <новая таблица> select * from <старая таблица>;`
    А это, может быть весьма долго, при больших объёмах данных.
 
-Если подозреваю, про CTAS-команду, правильно тогда более адекватным, в случае больших объёмов данных, в смысле снижения даунтайма, будет такой вариант:
+Для автоматизации этого всего существует, наппример, [pg_rewrite](https://github.com/cybertec-postgresql/pg_rewrite)
+
+Если подозреваю, перенос данных, скл-командой, или репликацией, или триггером, тогда, более адекватным, в случае больших объёмов данных, в смысле снижения даунтайма, будет такой вариант:
 1. Создаётся целевая таблица, понятно - такая же по структуре и по pk-индексу и с каким то именем.
    Имя, которое занято исходной таблицей - не трогается.
 2. Делается запуск репликации (натурально - репликации, или какого то поделия, на for-each-row дмл-триггере), из исходной таблицы, в целевую.
@@ -314,6 +316,115 @@ col2 | 366733
    Открытие доступа к целевой таблице.
 
 Ну. Попробовал так:
+1. Создал целевую таблицу:
+   ```sql
+   CREATE TABLE ticket_flights_hashed (
+       ticket_no character(13) NOT NULL,
+       flight_id integer NOT NULL,
+       fare_conditions character varying(10) NOT NULL,
+       amount numeric(10,2) NOT NULL,
+       CONSTRAINT ticket_flights_amount_check CHECK ((amount >= (0)::numeric)),
+       CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
+   )
+   partition by hash(ticket_no, flight_id) 
+   ;
+   alter table ticket_flights_hashed add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
+   ```
+   Конечно лобовая попытка подключить старую таблицу как партицию, в данном случае - не получилась:
+   ```sql
+   [local]:5432 #postgres@demo > alter table ticket_flights_hashed attach partition ticket_flights for values with (modulus 10, remainder 9);
+   ERROR:  partition constraint of relation "ticket_flights" is violated by some row
+   ```
+   Поэтому, в случае hash-секционирования: только ч/з переливку данных.
+   Кстати, если захочется увеличить кол-во партиций, при хеш-секционировании - тоже [через переливку данных](https://www.postgresql.fastware.com/postgresql-insider-prt-ove).
+2. Объявил партиции:
+   ```sql
+   create table ticket_flights_hashed_p0 partition of ticket_flights_hashed for values with (modulus 5,remainder 0);
+   create table ticket_flights_hashed_p1 partition of ticket_flights_hashed for values with (modulus 5,remainder 1);
+   create table ticket_flights_hashed_p2 partition of ticket_flights_hashed for values with (modulus 5,remainder 2);
+   create table ticket_flights_hashed_p3 partition of ticket_flights_hashed for values with (modulus 5,remainder 3);
+   create table ticket_flights_hashed_p4 partition of ticket_flights_hashed for values with (modulus 5,remainder 4);
+   [local]:5432 #postgres@demo > \d+ ticket_flights_hashed_p4
+                                              Table "bookings.ticket_flights_hashed_p4"
+        Column      |         Type          | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
+   -----------------+-----------------------+-----------+----------+---------+----------+-------------+--------------+-------------
+    ticket_no       | character(13)         |           | not null |         | extended |             |              |
+    flight_id       | integer               |           | not null |         | plain    |             |              |
+    fare_conditions | character varying(10) |           | not null |         | extended |             |              |
+    amount          | numeric(10,2)         |           | not null |         | main     |             |              |
+   Partition of: ticket_flights_hashed FOR VALUES WITH (modulus 5, remainder 4)
+   Partition constraint: satisfies_hash_partition('33006'::oid, 5, 4, ticket_no, flight_id)
+   Indexes:
+       "ticket_flights_hashed_p4_pkey" PRIMARY KEY, btree (ticket_no, flight_id)
+   Check constraints:
+       "ticket_flights_amount_check" CHECK (amount >= 0::numeric)
+       "ticket_flights_fare_conditions_check" CHECK (fare_conditions::text = ANY (ARRAY['Economy'::character varying::text, 'Comfort'::character varying::text, 'Business'::character varying::text]))
+   Access method: heap
+   ```
+3. Дальше надо бы, конечно, писать хотя бы for-each-row дмл-триггер.
+   Чтобы он, при выполнении дмл-команд на исходную таблицу, в фоне, вставлял (или обновлял, если уже было вставлено) обрабатываемую строку(строки) из исходной таблицы, в целевую.
+   Определять этот триггер в бд.
+   И запускать свою дмл-команду, на исходную таблицу, которой выполнить какой нибудь формальный апдейт каждой строки.
+   Затем перекрыть, как нибудь, доступность к исходной таблице, для пользовательских скл-сессий.
+   Дать доработать старым транзакциям.
+   Увы: merge-команды в пг нет, поэтому: просто ещё раз выполнить формальный апдейт.
+   Мне это всё проделывать, ну, как то слишком, для формата ДЗ.
+   Поэтому ограничился простым инсертом всех данных из исходной таблицы, в целевую - хеш-секционированную.
+   ```sql
+   [local]:5432 #postgres@demo > insert into ticket_flights_hashed select * from ticket_flights;
+   INSERT 0 1045726
+   Time: 10755.497 ms (00:10.755)
+   ```
+4. Размеры таблиц, исходной/целевой, таблиц-партиций:
+   ```sql
+   [local]:5432 #postgres@demo > select  n.nspname
+   demo-#        ,pa.rolname||'.'||t.relname as db_object
+   demo-#        ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
+   demo-#        ,pg_table_size(t.oid) as t_size
+   demo-#        ,pg_total_relation_size(t.oid) as ti_size
+   demo-# from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
+   demo-# where 1=1
+   demo-#   and t.relkind='r'
+   demo-#   and t.relnamespace=n.oid
+   demo-#   and t.relowner=pa.oid
+   demo-#   and t.relname in ('ticket_flights_hashed','ticket_flights','ticket_flights_hashed_p0','ticket_flights_hashed_p1','ticket_flights_hashed_p2','ticket_flights_hashed_p3','ticket_flights_hashed_p4')
+   demo-# order by t.reltuples desc;
+    nspname  |             db_object             |     est_rows     |  t_size  |  ti_size
+   ----------+-----------------------------------+------------------+----------+-----------
+    bookings | postgres.ticket_flights           |          1045730 | 71442432 | 113917952
+    bookings | postgres.ticket_flights_hashed_p1 |           209618 | 14344192 |  25616384
+    bookings | postgres.ticket_flights_hashed_p0 |           209163 | 14319616 |  25444352
+    bookings | postgres.ticket_flights_hashed_p4 |           209100 | 14311424 |  25534464
+    bookings | postgres.ticket_flights_hashed_p2 |           209042 | 14311424 |  25452544
+    bookings | postgres.ticket_flights_hashed_p3 |           208803 | 14295040 |  25444352
+   (6 rows)
+   ```
+   Ещё интересный запрос, с учётом связей партиционированной таблицы и её партиций:
+```sql
+   [local]:5432 #postgres@demo > select  n.nspname
+   demo-#        ,v1.relname as table_name
+   demo-#        ,p1.relname as partition_name
+   demo-#        ,pg_table_size(v1.inhrelid) as part_size
+   demo-#        ,pg_total_relation_size(v1.inhrelid)-pg_table_size(v1.inhrelid) as part_idx_size
+   demo-# from (
+   demo(#       select  p.relname, p.relnamespace, i.inhrelid
+   demo(#       from pg_inherits i, pg_class p
+   demo(#       where p.relkind='p'
+   demo(#         and p.relname='ticket_flights_hashed'
+   demo(#         and i.inhparent=p.oid
+   demo(#       ) v1, pg_class p1, pg_catalog.pg_namespace n
+   demo-# where v1.relnamespace=n.oid
+   demo-#   and v1.inhrelid=p1.oid
+   demo-# ;
+    nspname  |      table_name       |      partition_name      | part_size | part_idx_size
+   ----------+-----------------------+--------------------------+-----------+---------------
+    bookings | ticket_flights_hashed | ticket_flights_hashed_p0 |  14319616 |      11124736
+    bookings | ticket_flights_hashed | ticket_flights_hashed_p1 |  14344192 |      11272192
+    bookings | ticket_flights_hashed | ticket_flights_hashed_p2 |  14311424 |      11141120
+    bookings | ticket_flights_hashed | ticket_flights_hashed_p3 |  14295040 |      11149312
+    bookings | ticket_flights_hashed | ticket_flights_hashed_p4 |  14311424 |      11223040
+   (5 rows)
+   ```
 
 
 
