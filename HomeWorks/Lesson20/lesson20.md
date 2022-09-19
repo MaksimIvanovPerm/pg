@@ -426,7 +426,72 @@ col2 | 366733
    (5 rows)
    ```
 
-
+C range-секционированием, всё таки, интересно.
+Попробовал так:
+1. Имеющийся, по факту, в данных столбцов таблицы `ticket_flights` дапазон значений:
+   ```sql
+   [local]:5432 #postgres@demo > select min(to_number(t.ticket_no, '9999999999999')) as tmin, max(to_number(t.ticket_no, '9999999999999')) as tmax from ticket_flights t limit 10;
+       tmin    |    tmax
+   ------------+------------
+    5432000987 | 5435999873
+   
+   [local]:5432 #postgres@demo > select min(flight_id) as fmin, max(flight_id) as fmax from ticket_flights t limit 10;                 fmin | fmax
+   ------+-------
+       1 | 33121
+   (1 row)
+   
+   [local]:5432 #postgres@demo > \d ticket_flights
+                        Table "bookings.ticket_flights"
+        Column      |         Type          | Collation | Nullable | Default
+   -----------------+-----------------------+-----------+----------+---------
+    ticket_no       | character(13)         |           | not null |
+    flight_id       | integer               |           | not null |
+    fare_conditions | character varying(10) |           | not null |
+    amount          | numeric(10,2)         |           | not null |
+   ```
+   Оба поля `ticket_no,flight_id` - not null;
+2. Ну. Что. Создал таблицу:
+   ```sql
+   [local]:5432 #postgres@demo > CREATE OR REPLACE FUNCTION func1(p1 character)
+   demo-#   RETURNS numeric
+   demo-# AS
+   demo-# $BODY$
+   demo$#     select to_number($1, '9999999999999');
+   demo$# $BODY$
+   demo-# LANGUAGE sql
+   demo-# IMMUTABLE;
+   CREATE FUNCTION
+   [local]:5432 #postgres@demo >    CREATE TABLE ticket_flights_range (
+   demo(#        ticket_no character(13) NOT NULL,
+   demo(#        flight_id integer NOT NULL,
+   demo(#        fare_conditions character varying(10) NOT NULL,
+   demo(#        amount numeric(10,2) NOT NULL,
+   demo(#        CONSTRAINT ticket_flights_amount_check CHECK ((amount >= (0)::numeric)),
+   demo(#        CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
+   demo(#    )
+   demo-#    partition by range(func1(ticket_no), flight_id);
+   CREATE TABLE
+   CREATE TABLE
+   [local]:5432 #postgres@demo > alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
+   ERROR:  unsupported PRIMARY KEY constraint with partition key definition
+   DETAIL:  PRIMARY KEY constraints cannot be used when partition keys include expressions.
+   [local]:5432 #postgres@demo > create unique index ticket_flights_hashed_uk on ticket_flights_range(ticket_no, flight_id);
+   ERROR:  unsupported UNIQUE constraint with partition key definition
+   DETAIL:  UNIQUE constraints cannot be used when partition keys include expressions.
+   [local]:5432 #postgres@demo > create index ticket_flights_hashed_idx on ticket_flights_range(ticket_no, flight_id);
+   CREATE INDEX
+   ```
+   Засада конечно, с pk|uk.
+   С другой стороны - резонно, кто его знает что за экспрешен там понапишут.
+   Хотя могли и потребовать детерменированности функций и возврата скаляра.
+   Ну. Ладно. 
+   Если уж костылить и извращаться, то можно, при наличии индекса на `ticket_no, flight_id` вркутить на `ticket_flights_range` for-each-row дмл-триггер.
+   Которым, при вставке/апдейте строк в `ticket_flights_range` - контролировать вновь образуемые значения в `ticket_no, flight_id`: не дубли ли это.
+2. Дальше выполнил:
+   ```sql
+   alter table ticket_flights_range attach partition ticket_flights for values from (5432000987, 1) to (5435999873, 33121);
+   ```
+   И оно: прекрасно выполнилось:
 
 
 
