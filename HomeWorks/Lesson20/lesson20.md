@@ -452,6 +452,7 @@ C range-секционированием, всё таки, интересно.
    Оба поля `ticket_no,flight_id` - not null;
 2. Ну. Что. Создал таблицу:
    ```sql
+   --Wrapper as a way to awid: ERROR:  functions in partition key expression must be marked IMMUTABLE
    [local]:5432 #postgres@demo > CREATE OR REPLACE FUNCTION func1(p1 character)
    demo-#   RETURNS numeric
    demo-# AS
@@ -482,7 +483,8 @@ C range-секционированием, всё таки, интересно.
    CREATE INDEX
    ```
    Засада конечно, с pk|uk.
-   С другой стороны - резонно, кто его знает что за экспрешен там понапишут.
+   Без выражений, на просто списки столбцов - создаётся, выше, с хеш-секционированием, пример.
+   С другой стороны - резонно, кто его знает что за экспрешен могут понаписать, в общем случае.
    Хотя могли и потребовать детерменированности функций и возврата скаляра.
    Ну. Ладно. 
    Если уж костылить и извращаться, то можно, при наличии индекса на `ticket_no, flight_id` вркутить на `ticket_flights_range` for-each-row дмл-триггер.
@@ -493,5 +495,9 @@ C range-секционированием, всё таки, интересно.
    ```
    И оно - прекрасно выполнилось:
    ![1.png](/HomeWorks/Lesson20/1.png)
+   Правда сплитить партицию: тоже [через перезаливку данных](https://stackoverflow.com/questions/63529097/how-to-divide-single-partition-into-two-different-partitions-in-postgresql-and-t) самой, расщепляемой партиции.
+   split-partition пг не поддерживает.
+3. Детач партиции - тоже выполнился успешно:
+   ![2.png](/HomeWorks/Lesson20/2.png)
 
 
