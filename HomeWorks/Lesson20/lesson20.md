@@ -491,7 +491,7 @@ C range-секционированием, всё таки, интересно.
    ```sql
    alter table ticket_flights_range attach partition ticket_flights for values from (5432000987, 1) to (5435999873, 33121);
    ```
-   И оно: прекрасно выполнилось:
-
+   И оно - прекрасно выполнилось:
+   ![1.png](/HomeWorks/Lesson20/1.png)
 
 
