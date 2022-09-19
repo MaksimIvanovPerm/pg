@@ -463,7 +463,7 @@ C range-секционированием, всё таки, интересно.
    Оба поля `ticket_no,flight_id` - not null;
 2. Ну. Что. Создал таблицу:
    ```sql
-   --Wrapper as a way to awid: ERROR:  functions in partition key expression must be marked IMMUTABLE
+   --Wrapper as a way to avoid: ERROR:  functions in partition key expression must be marked IMMUTABLE
    [local]:5432 #postgres@demo > CREATE OR REPLACE FUNCTION func1(p1 character)
    demo-#   RETURNS numeric
    demo-# AS
