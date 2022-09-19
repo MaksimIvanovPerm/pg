@@ -1,0 +1,31 @@
+                                                                                                                                              QUERY PLAN                                                                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=43.97..43.97 rows=3 width=118) (actual time=83.267..83.270 rows=6 loops=1)
+   Output: (to_char(f.scheduled_departure, 'DD.MM.YYYY'::text)), (((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text)), (((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text)), tf.fare_conditions, tf.amount, f.scheduled_departure
+   Sort Key: f.scheduled_departure
+   Sort Method: quicksort  Memory: 25kB
+   ->  Nested Loop  (cost=1.00..43.94 rows=3 width=118) (actual time=48.486..83.226 rows=6 loops=1)
+         Output: to_char(f.scheduled_departure, 'DD.MM.YYYY'::text), ((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text), ((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text), tf.fare_conditions, tf.amount, f.scheduled_departure
+         Inner Unique: true
+         ->  Nested Loop  (cost=0.86..41.88 rows=3 width=79) (actual time=41.708..76.338 rows=6 loops=1)
+               Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport, ml.city
+               Inner Unique: true
+               ->  Nested Loop  (cost=0.71..41.39 rows=3 width=30) (actual time=41.690..76.266 rows=6 loops=1)
+                     Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport
+                     Inner Unique: true
+                     ->  Index Scan using ticket_flights_pkey on bookings.ticket_flights tf  (cost=0.42..16.47 rows=3 width=18) (actual time=32.770..32.819 rows=6 loops=1)
+                           Output: tf.ticket_no, tf.flight_id, tf.fare_conditions, tf.amount
+                           Index Cond: (tf.ticket_no = '0005432661915'::bpchar)
+                     ->  Index Scan using flights_pkey on bookings.flights f  (cost=0.29..8.31 rows=1 width=20) (actual time=7.237..7.237 rows=1 loops=6)
+                           Output: f.flight_id, f.flight_no, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, f.aircraft_code, f.actual_departure, f.actual_arrival
+                           Index Cond: (f.flight_id = tf.flight_id)
+               ->  Index Scan using airports_data_pkey on bookings.airports_data ml  (cost=0.14..0.16 rows=1 width=53) (actual time=0.008..0.008 rows=1 loops=6)
+                     Output: ml.airport_code, ml.airport_name, ml.city, ml.coordinates, ml.timezone
+                     Index Cond: (ml.airport_code = f.departure_airport)
+         ->  Index Scan using airports_data_pkey on bookings.airports_data ml_1  (cost=0.14..0.16 rows=1 width=53) (actual time=0.004..0.004 rows=1 loops=6)
+               Output: ml_1.airport_code, ml_1.airport_name, ml_1.city, ml_1.coordinates, ml_1.timezone
+               Index Cond: (ml_1.airport_code = f.arrival_airport)
+ Planning Time: 31.015 ms
+ Execution Time: 83.997 ms
+(27 rows)
+
