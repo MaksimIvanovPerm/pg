@@ -223,6 +223,7 @@ ORDER BY t.ticket_no, f.scheduled_departure;
 \q
 __EOF__
 ```
+Давайте этот запрос, здесь и далее, называть `Q1`
 Ну. Так то есть `"ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)`;
 И есть `"tickets_pkey" PRIMARY KEY, btree (ticket_no)` на таблицу `tickets`;
 Оно эти джойны - отлично подведёт под NL-вариант соединения, и `ticket_flights` по определению запроса - будет ведомым потоком.
@@ -243,7 +244,8 @@ WHERE    tf.ticket_no = '0005432661915'
 ORDER BY f.scheduled_departure;
 ```
 
-Тут, если уникальных значений, именно в поле `ticket_no` - немного, относительно общего кол-ва строк в таблице `ticket_flights` секционирование - очень даже может помочь.
+Давайте этот запрос, здесь и далее, называть `Q2`
+В `Q2`, если уникальных значений, именно в поле `ticket_no` - немного, относительно общего кол-ва строк в таблице `ticket_flights` секционирование - очень даже может помочь.
 Что там с уникальностью:
 ```sql
 select  ps.attname
@@ -428,13 +430,14 @@ col2 | 366733
 5. Кстати выполнил `analyze verbose`, в бд `demo` 
    И посмотрел на план выполнения тех двух запросов, которые упоминал выше - как они изменяются, если в текст запросов, вместо `ticket_flights` подставить `ticket_flights_hashed`
    
+   Запрос `Q1`
    [plan2](/HomeWorks/Lesson20/plan2.txt)
    Тут, костам - никакой разницы, относительно варианта с использованием несекционированной, heap-таблицы. 
    
-   Для запроса с условием `tf.ticket_no = '0005432661915'` как и ожидалось: индексный доступ показывает себя лучше.
+   Для запроса `Q2`, который - с условием `tf.ticket_no = '0005432661915'` как и ожидалось: индексный доступ показывает себя лучше.
    
-   [plan3](/HomeWorks/Lesson20/plan3.txt)
-   [plan3_hash](/HomeWorks/Lesson20/plan3_hash.txt)
+   План выполнения с обращением к `ticket_flights` в ипостаси heap-таблицы: [plan3](/HomeWorks/Lesson20/plan3.txt)
+   План выполнения с обращением к `ticket_flights` в ипостаси hash-секционированной таблицы: [plan3_hash](/HomeWorks/Lesson20/plan3_hash.txt)
 
 
 C range-секционированием, всё таки, интересно.
@@ -512,3 +515,77 @@ C range-секционированием, всё таки, интересно.
    ![2.png](/HomeWorks/Lesson20/2.png)
 
 
+
+psql -d demo -t -c "select ticket_no, flight_id from ticket_flights order by 1, 2;" > /tmp/temp.txt
+v_count="1"
+v_count2="1"
+v_trshld="105000"
+v_x=""
+v_tf=()
+while read line; do
+      if [ "$v_count2" -eq "1" ]; then
+         v_x=$(echo -n "$line" | cut -f 1 -d "|" | tr -d [:space:] )
+         echo "$v_count2 $v_x"
+         v_tf+=($v_x)
+      fi
+      v_count=$((v_count+1))
+      v_count2=$((v_count2+1))
+      if [ "$v_count" -eq "$v_trshld" ]; then
+         v_x=$(echo -n "$line" | cut -f 1 -d "|" | tr -d [:space:] )
+         echo "$v_count2 $v_x"
+         v_tf+=($v_x)
+         v_count="1"
+      fi
+done < <(cat /tmp/temp.txt)
+
+v_x=""
+v_y=""
+v_str=""
+cat /dev/null > /tmp/temp2.txt
+for i in ${!v_tf[@]}; do
+    echo "${v_tf[$i]}"
+    if [ "$i" -eq "0" ]; then
+       v_x="${v_tf[$i]}"
+    else
+       v_y="${v_tf[$i]}"
+       v_y=$( echo -n ${v_y} | sed -r "s/^0+//" )
+       v_y=$((v_y-1))
+       v_y="000${v_y}" #yes, I know
+       v_str=$(echo -n "select min(flight_id) as co1l, max(flight_id) as col2 from ticket_flights where ticket_no>='${v_x}' and ticket_no<'${v_y}';")
+       v_str=$( psql -d demo -t -q -c "$v_str" | tr -d [:cntrl:] )
+       v_low=$( echo -n "$v_str" | cut -f 1 -d "|" )
+       v_hi=$( echo -n "$v_str" | cut -f 2 -d "|" )
+       echo "${v_x} ${v_y} ${v_low} ${v_hi}" | tee -a "/tmp/temp2.txt"
+       v_x="${v_tf[$i]}"
+    fi
+done
+
+cat "/tmp/temp2.txt" | awk '{printf "create table ticket_flights_range_p%d partition of ticket_flights_range for values from ('\''%s'\'', %d) to ('\''%s'\'', %d);\n", NR, $1, $3, $2, $4;}'
+
+CREATE TABLE ticket_flights_range (
+    ticket_no character(13) NOT NULL,
+    flight_id integer NOT NULL,
+    fare_conditions character varying(10) NOT NULL,
+    amount numeric(10,2) NOT NULL,
+    CONSTRAINT ticket_flights_amount_check CHECK ((amount >= (0)::numeric)),
+    CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
+   )
+   partition by range(ticket_no, ticket_no);
+--alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
+create table ticket_flights_range_default partition of ticket_flights_range default;
+create table ticket_flights_range_p1 partition of ticket_flights_range for values from ('0005432000987', 1) to ('0005432569011', 31341);
+create table ticket_flights_range_p2 partition of ticket_flights_range for values from ('0005432569012', 1) to ('0005432949091', 32518);
+create table ticket_flights_range_p3 partition of ticket_flights_range for values from ('0005432949092', 2) to ('0005433345622', 32936);
+create table ticket_flights_range_p4 partition of ticket_flights_range for values from ('0005433345623', 3) to ('0005433716457', 32518);
+create table ticket_flights_range_p5 partition of ticket_flights_range for values from ('0005433716458', 43) to ('0005434082374', 32702);
+create table ticket_flights_range_p6 partition of ticket_flights_range for values from ('0005434082375', 9) to ('0005434435159', 32876);
+create table ticket_flights_range_p7 partition of ticket_flights_range for values from ('0005434435160', 28) to ('0005434878084', 32998);
+create table ticket_flights_range_p8 partition of ticket_flights_range for values from ('0005434878085', 245) to ('0005435214745', 33121);
+create table ticket_flights_range_p9 partition of ticket_flights_range for values from ('0005435214746', 1038) to ('0005435626534', 33121);
+
+
+insert into ticket_flights_range select * from ticket_flights;
+commit;
+alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
+
+# select count(*) from only ticket_flights_range;
