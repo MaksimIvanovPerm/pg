@@ -414,7 +414,7 @@ col2 | 366733
    ```
    Ещё интересный запрос, с учётом связей партиционированной таблицы и её партиций:
    ```sql
-   [local]:5432 #postgres@demo > select  n.nspname
+   select  n.nspname
        ,v1.relname as table_name
        ,p1.relname as partition_name
        ,pg_table_size(v1.inhrelid) as part_size
