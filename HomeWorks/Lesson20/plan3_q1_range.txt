@@ -1,3 +1,23 @@
+SELECT   b.book_ref,
+         t.ticket_no,
+         t.passenger_id,
+         t.passenger_name,
+         tf.fare_conditions,
+         tf.amount,
+         f.scheduled_departure_local,
+         f.scheduled_arrival_local,
+         f.departure_city || ' (' || f.departure_airport || ')' AS departure,
+         f.arrival_city || ' (' || f.arrival_airport || ')' AS arrival,
+         f.status,
+         bp.seat_no
+FROM     bookings b
+         JOIN tickets t ON b.book_ref = t.book_ref
+         JOIN ticket_flights_range tf ON tf.ticket_no = t.ticket_no
+         JOIN flights_v f ON tf.flight_id = f.flight_id
+         LEFT JOIN boarding_passes bp ON tf.flight_id = bp.flight_id
+                                     AND tf.ticket_no = bp.ticket_no
+WHERE    b.book_ref = '_QWE12'
+ORDER BY t.ticket_no, f.scheduled_departure;
                                                                                                                                                                                                            QUERY PLAN                                                                                                                                                                                                            
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Sort  (cost=11087.30..11087.32 rows=6 width=162) (actual time=0.098..0.101 rows=0 loops=1)
