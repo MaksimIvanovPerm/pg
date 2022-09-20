@@ -1,0 +1,50 @@
+SELECT   to_char(f.scheduled_departure, 'DD.MM.YYYY') AS when,
+         f.departure_city || ' (' || f.departure_airport || ')' AS departure,
+         f.arrival_city || ' (' || f.arrival_airport || ')' AS arrival,
+         tf.fare_conditions AS class,
+         tf.amount
+FROM     ticket_flights_range tf
+         JOIN flights_v f ON tf.flight_id = f.flight_id
+WHERE    tf.ticket_no = '0005432661915'
+ORDER BY f.scheduled_departure;
+                                                                                                                                              QUERY PLAN                                                                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4366.91..4366.93 rows=6 width=118) (actual time=16.637..16.640 rows=6 loops=1)
+   Output: (to_char(f.scheduled_departure, 'DD.MM.YYYY'::text)), (((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text)), (((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text)), tf.fare_conditions, tf.amount, f.scheduled_departure
+   Sort Key: f.scheduled_departure
+   Sort Method: quicksort  Memory: 25kB
+   ->  Nested Loop  (cost=0.29..4366.83 rows=6 width=118) (actual time=16.492..16.612 rows=6 loops=1)
+         Output: to_char(f.scheduled_departure, 'DD.MM.YYYY'::text), ((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text), ((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text), tf.fare_conditions, tf.amount, f.scheduled_departure
+         Join Filter: (f.arrival_airport = ml_1.airport_code)
+         Rows Removed by Join Filter: 618
+         ->  Seq Scan on bookings.airports_data ml_1  (cost=0.00..4.04 rows=104 width=53) (actual time=0.004..0.013 rows=104 loops=1)
+               Output: ml_1.airport_code, ml_1.airport_name, ml_1.city, ml_1.coordinates, ml_1.timezone
+         ->  Materialize  (cost=0.29..4350.28 rows=6 width=79) (actual time=0.155..0.156 rows=6 loops=104)
+               Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport, ml.city
+               ->  Nested Loop  (cost=0.29..4350.25 rows=6 width=79) (actual time=16.076..16.176 rows=6 loops=1)
+                     Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport, ml.city
+                     Join Filter: (f.departure_airport = ml.airport_code)
+                     Rows Removed by Join Filter: 618
+                     ->  Seq Scan on bookings.airports_data ml  (cost=0.00..4.04 rows=104 width=53) (actual time=0.001..0.012 rows=104 loops=1)
+                           Output: ml.airport_code, ml.airport_name, ml.city, ml.coordinates, ml.timezone
+                     ->  Materialize  (cost=0.29..4336.87 rows=6 width=30) (actual time=0.005..0.155 rows=6 loops=104)
+                           Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport
+                           ->  Nested Loop  (cost=0.29..4336.84 rows=6 width=30) (actual time=0.471..16.058 rows=6 loops=1)
+                                 Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport
+                                 Inner Unique: true
+                                 ->  Append  (cost=0.00..4286.99 rows=6 width=18) (actual time=0.454..16.013 rows=6 loops=1)
+                                       ->  Seq Scan on bookings.ticket_flights_range_p2 tf_1  (cost=0.00..2187.43 rows=3 width=18) (actual time=0.454..8.732 rows=6 loops=1)
+                                             Output: tf_1.fare_conditions, tf_1.amount, tf_1.flight_id
+                                             Filter: (tf_1.ticket_no = '0005432661915'::bpchar)
+                                             Rows Removed by Filter: 104988
+                                       ->  Seq Scan on bookings.ticket_flights_range_default tf_2  (cost=0.00..2099.54 rows=3 width=18) (actual time=7.278..7.278 rows=0 loops=1)
+                                             Output: tf_2.fare_conditions, tf_2.amount, tf_2.flight_id
+                                             Filter: (tf_2.ticket_no = '0005432661915'::bpchar)
+                                             Rows Removed by Filter: 100763
+                                 ->  Index Scan using flights_pkey on bookings.flights f  (cost=0.29..8.31 rows=1 width=20) (actual time=0.006..0.006 rows=1 loops=6)
+                                       Output: f.flight_id, f.flight_no, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, f.aircraft_code, f.actual_departure, f.actual_arrival
+                                       Index Cond: (f.flight_id = tf.flight_id)
+ Planning Time: 1.453 ms
+ Execution Time: 17.335 ms
+(37 rows)
+

@@ -1,0 +1,98 @@
+                                                                                                                                                                                                           QUERY PLAN                                                                                                                                                                                                            
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=11087.30..11087.32 rows=6 width=162) (actual time=0.098..0.101 rows=0 loops=1)
+   Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, (timezone(ml.timezone, f.scheduled_departure)), (timezone(ml_1.timezone, f.scheduled_arrival)), (((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text)), (((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text)), f.status, bp.seat_no, f.scheduled_departure
+   Sort Key: t.ticket_no, f.scheduled_departure
+   Sort Method: quicksort  Memory: 25kB
+   ->  Nested Loop Left Join  (cost=5.58..11087.23 rows=6 width=162) (actual time=0.073..0.076 rows=0 loops=1)
+         Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, timezone(ml.timezone, f.scheduled_departure), timezone(ml_1.timezone, f.scheduled_arrival), ((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text), ((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text), f.status, bp.seat_no, f.scheduled_departure
+         Inner Unique: true
+         ->  Nested Loop  (cost=5.15..11081.21 rows=6 width=241) (actual time=0.072..0.075 rows=0 loops=1)
+               Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, tf.ticket_no, tf.flight_id, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, ml.timezone, ml.city, ml_1.timezone, ml_1.city
+               Join Filter: (f.arrival_airport = ml_1.airport_code)
+               ->  Seq Scan on bookings.airports_data ml_1  (cost=0.00..4.04 rows=104 width=68) (actual time=0.004..0.011 rows=104 loops=1)
+                     Output: ml_1.airport_code, ml_1.airport_name, ml_1.city, ml_1.coordinates, ml_1.timezone
+               ->  Materialize  (cost=5.15..11067.83 rows=6 width=177) (actual time=0.001..0.001 rows=0 loops=104)
+                     Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, tf.ticket_no, tf.flight_id, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, ml.timezone, ml.city
+                     ->  Nested Loop  (cost=5.15..11067.80 rows=6 width=177) (actual time=0.047..0.049 rows=0 loops=1)
+                           Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, tf.ticket_no, tf.flight_id, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, ml.timezone, ml.city
+                           Join Filter: (f.departure_airport = ml.airport_code)
+                           ->  Seq Scan on bookings.airports_data ml  (cost=0.00..4.04 rows=104 width=68) (actual time=0.001..0.014 rows=104 loops=1)
+                                 Output: ml.airport_code, ml.airport_name, ml.city, ml.coordinates, ml.timezone
+                           ->  Materialize  (cost=5.15..11054.41 rows=6 width=113) (actual time=0.000..0.000 rows=0 loops=104)
+                                 Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, tf.ticket_no, tf.flight_id, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status
+                                 ->  Nested Loop  (cost=5.15..11054.38 rows=6 width=113) (actual time=0.016..0.018 rows=0 loops=1)
+                                       Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, tf.ticket_no, tf.flight_id, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status
+                                       Inner Unique: true
+                                       ->  Nested Loop  (cost=4.86..11052.53 rows=6 width=81) (actual time=0.016..0.018 rows=0 loops=1)
+                                             Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name, tf.fare_conditions, tf.amount, tf.ticket_no, tf.flight_id
+                                             ->  Nested Loop  (cost=0.42..10732.62 rows=2 width=49) (actual time=0.016..0.016 rows=0 loops=1)
+                                                   Output: b.book_ref, t.ticket_no, t.passenger_id, t.passenger_name
+                                                   ->  Index Only Scan using bookings_pkey on bookings.bookings b  (cost=0.42..4.44 rows=1 width=7) (actual time=0.015..0.016 rows=0 loops=1)
+                                                         Output: b.book_ref
+                                                         Index Cond: (b.book_ref = '_QWE12'::bpchar)
+                                                         Heap Fetches: 0
+                                                   ->  Seq Scan on bookings.tickets t  (cost=0.00..10728.16 rows=2 width=49) (never executed)
+                                                         Output: t.ticket_no, t.book_ref, t.passenger_id, t.passenger_name, t.contact_data
+                                                         Filter: (t.book_ref = '_QWE12'::bpchar)
+                                             ->  Append  (cost=4.44..159.65 rows=30 width=32) (never executed)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p1 tf_1  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_1.fare_conditions, tf_1.amount, tf_1.ticket_no, tf_1.flight_id
+                                                         Recheck Cond: (tf_1.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p1_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_1.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p2 tf_2  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_2.fare_conditions, tf_2.amount, tf_2.ticket_no, tf_2.flight_id
+                                                         Recheck Cond: (tf_2.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p2_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_2.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p3 tf_3  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_3.fare_conditions, tf_3.amount, tf_3.ticket_no, tf_3.flight_id
+                                                         Recheck Cond: (tf_3.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p3_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_3.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p4 tf_4  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_4.fare_conditions, tf_4.amount, tf_4.ticket_no, tf_4.flight_id
+                                                         Recheck Cond: (tf_4.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p4_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_4.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p5 tf_5  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_5.fare_conditions, tf_5.amount, tf_5.ticket_no, tf_5.flight_id
+                                                         Recheck Cond: (tf_5.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p5_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_5.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p6 tf_6  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_6.fare_conditions, tf_6.amount, tf_6.ticket_no, tf_6.flight_id
+                                                         Recheck Cond: (tf_6.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p6_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_6.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p7 tf_7  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_7.fare_conditions, tf_7.amount, tf_7.ticket_no, tf_7.flight_id
+                                                         Recheck Cond: (tf_7.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p7_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_7.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p8 tf_8  (cost=4.44..15.95 rows=3 width=31) (never executed)
+                                                         Output: tf_8.fare_conditions, tf_8.amount, tf_8.ticket_no, tf_8.flight_id
+                                                         Recheck Cond: (tf_8.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p8_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_8.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_p9 tf_9  (cost=4.44..15.95 rows=3 width=32) (never executed)
+                                                         Output: tf_9.fare_conditions, tf_9.amount, tf_9.ticket_no, tf_9.flight_id
+                                                         Recheck Cond: (tf_9.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_p9_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_9.ticket_no = t.ticket_no)
+                                                   ->  Bitmap Heap Scan on bookings.ticket_flights_range_default tf_10  (cost=4.44..15.94 rows=3 width=32) (never executed)
+                                                         Output: tf_10.fare_conditions, tf_10.amount, tf_10.ticket_no, tf_10.flight_id
+                                                         Recheck Cond: (tf_10.ticket_no = t.ticket_no)
+                                                         ->  Bitmap Index Scan on ticket_flights_range_default_pkey  (cost=0.00..4.44 rows=3 width=0) (never executed)
+                                                               Index Cond: (tf_10.ticket_no = t.ticket_no)
+                                       ->  Index Scan using flights_pkey on bookings.flights f  (cost=0.29..0.31 rows=1 width=36) (never executed)
+                                             Output: f.flight_id, f.flight_no, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, f.aircraft_code, f.actual_departure, f.actual_arrival
+                                             Index Cond: (f.flight_id = tf.flight_id)
+         ->  Index Scan using boarding_passes_pkey on bookings.boarding_passes bp  (cost=0.42..0.47 rows=1 width=21) (never executed)
+               Output: bp.ticket_no, bp.flight_id, bp.boarding_no, bp.seat_no
+               Index Cond: ((bp.ticket_no = tf.ticket_no) AND (bp.flight_id = tf.flight_id))
+ Planning Time: 3.489 ms
+ Execution Time: 1.041 ms
+(94 rows)
+
