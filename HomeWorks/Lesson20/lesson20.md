@@ -227,14 +227,15 @@ ORDER BY t.ticket_no, f.scheduled_departure;
 __EOF__
 ```
 Давайте этот запрос, здесь и далее, называть `Q1`
-Ну. Так то есть `"ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)`;
+Ну. 
+Выше видно что есть `"ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)`;
 И есть `"tickets_pkey" PRIMARY KEY, btree (ticket_no)` на таблицу `tickets`;
 Оно эти джойны - отлично подведёт под NL-вариант соединения, и `ticket_flights` по определению запроса - будет ведомым потоком.
 Для индексного доступа в таблицу - не важно, таблица секционирована/не секционирована.
 
-[План выполнения](/HomeWorks/Lesson20/plan.txt) этого запроса: всё таки и есть.
+[План выполнения](/HomeWorks/Lesson20/plan.txt) этого запроса: и да - всё таки и есть: NL-джойны с индексным доступом.
 
-С фильтрацией - ну, например:
+С фильтрацией запрос - ну, например:
 ```sql
 SELECT   to_char(f.scheduled_departure, 'DD.MM.YYYY') AS when,
          f.departure_city || ' (' || f.departure_airport || ')' AS departure,
