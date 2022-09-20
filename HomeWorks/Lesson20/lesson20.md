@@ -380,17 +380,17 @@ col2 | 366733
 4. Размеры таблиц, исходной/целевой, таблиц-партиций:
    ```sql
    [local]:5432 #postgres@demo > select  n.nspname
-   demo-#        ,pa.rolname||'.'||t.relname as db_object
-   demo-#        ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
-   demo-#        ,pg_table_size(t.oid) as t_size
-   demo-#        ,pg_total_relation_size(t.oid) as ti_size
-   demo-# from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
-   demo-# where 1=1
-   demo-#   and t.relkind='r'
-   demo-#   and t.relnamespace=n.oid
-   demo-#   and t.relowner=pa.oid
-   demo-#   and t.relname in ('ticket_flights_hashed','ticket_flights','ticket_flights_hashed_p0','ticket_flights_hashed_p1','ticket_flights_hashed_p2','ticket_flights_hashed_p3','ticket_flights_hashed_p4')
-   demo-# order by t.reltuples desc;
+       ,pa.rolname||'.'||t.relname as db_object
+       ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
+       ,pg_table_size(t.oid) as t_size
+       ,pg_total_relation_size(t.oid) as ti_size
+from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
+where 1=1
+  and t.relkind='r'
+  and t.relnamespace=n.oid
+  and t.relowner=pa.oid
+  and t.relname in ('ticket_flights_hashed','ticket_flights','ticket_flights_hashed_p0','ticket_flights_hashed_p1','ticket_flights_hashed_p2','ticket_flights_hashed_p3','ticket_flights_hashed_p4')
+order by t.reltuples desc;
     nspname  |             db_object             |     est_rows     |  t_size  |  ti_size
    ----------+-----------------------------------+------------------+----------+-----------
     bookings | postgres.ticket_flights           |          1045730 | 71442432 | 113917952
@@ -404,20 +404,20 @@ col2 | 366733
    Ещё интересный запрос, с учётом связей партиционированной таблицы и её партиций:
 ```sql
    [local]:5432 #postgres@demo > select  n.nspname
-   demo-#        ,v1.relname as table_name
-   demo-#        ,p1.relname as partition_name
-   demo-#        ,pg_table_size(v1.inhrelid) as part_size
-   demo-#        ,pg_total_relation_size(v1.inhrelid)-pg_table_size(v1.inhrelid) as part_idx_size
-   demo-# from (
-   demo(#       select  p.relname, p.relnamespace, i.inhrelid
-   demo(#       from pg_inherits i, pg_class p
-   demo(#       where p.relkind='p'
-   demo(#         and p.relname='ticket_flights_hashed'
-   demo(#         and i.inhparent=p.oid
-   demo(#       ) v1, pg_class p1, pg_catalog.pg_namespace n
-   demo-# where v1.relnamespace=n.oid
-   demo-#   and v1.inhrelid=p1.oid
-   demo-# ;
+       ,v1.relname as table_name
+       ,p1.relname as partition_name
+       ,pg_table_size(v1.inhrelid) as part_size
+       ,pg_total_relation_size(v1.inhrelid)-pg_table_size(v1.inhrelid) as part_idx_size
+from (
+       select  p.relname, p.relnamespace, i.inhrelid
+       from pg_inherits i, pg_class p
+       where p.relkind='p'
+         and p.relname='ticket_flights_hashed'
+         and i.inhparent=p.oid
+       ) v1, pg_class p1, pg_catalog.pg_namespace n
+where v1.relnamespace=n.oid
+  and v1.inhrelid=p1.oid
+;
     nspname  |      table_name       |      partition_name      | part_size | part_idx_size
    ----------+-----------------------+--------------------------+-----------+---------------
     bookings | ticket_flights_hashed | ticket_flights_hashed_p0 |  14319616 |      11124736
@@ -431,7 +431,7 @@ col2 | 366733
    И посмотрел на план выполнения тех двух запросов, которые упоминал выше - как они изменяются, если в текст запросов, вместо `ticket_flights` подставить `ticket_flights_hashed`
    
    План выполнения `Q1`: [plan2](/HomeWorks/Lesson20/plan2.txt)
-   Тут, костам - никакой разницы, относительно варианта с использованием несекционированной, heap-таблицы. 
+   Тут, по костам - никакой разницы, относительно варианта с использованием несекционированной, heap-таблицы. 
    
    Для запроса `Q2`, который - с условием `tf.ticket_no = '0005432661915'` как и ожидалось: индексный доступ показывает себя лучше.
    
@@ -468,23 +468,23 @@ C range-секционированием, всё таки, интересно.
    ```sql
    --Wrapper as a way to avoid: ERROR:  functions in partition key expression must be marked IMMUTABLE
    [local]:5432 #postgres@demo > CREATE OR REPLACE FUNCTION func1(p1 character)
-   demo-#   RETURNS numeric
-   demo-# AS
-   demo-# $BODY$
-   demo$#     select to_number($1, '9999999999999');
-   demo$# $BODY$
-   demo-# LANGUAGE sql
-   demo-# IMMUTABLE;
+   RETURNS numeric
+   AS
+   $BODY$
+   select to_number($1, '9999999999999');
+   $BODY$
+   LANGUAGE sql
+   IMMUTABLE;
    CREATE FUNCTION
    [local]:5432 #postgres@demo >    CREATE TABLE ticket_flights_range (
-   demo(#        ticket_no character(13) NOT NULL,
-   demo(#        flight_id integer NOT NULL,
-   demo(#        fare_conditions character varying(10) NOT NULL,
-   demo(#        amount numeric(10,2) NOT NULL,
-   demo(#        CONSTRAINT ticket_flights_amount_check CHECK ((amount >= (0)::numeric)),
-   demo(#        CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
-   demo(#    )
-   demo-#    partition by range(func1(ticket_no), flight_id);
+   ticket_no character(13) NOT NULL,
+   flight_id integer NOT NULL,
+   fare_conditions character varying(10) NOT NULL,
+   amount numeric(10,2) NOT NULL,
+   CONSTRAINT ticket_flights_amount_check CHECK ((amount >= (0)::numeric)),
+   CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
+   )
+   partition by range(func1(ticket_no), flight_id);
    CREATE TABLE
    CREATE TABLE
    [local]:5432 #postgres@demo > alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
@@ -514,54 +514,15 @@ C range-секционированием, всё таки, интересно.
 3. Детач партиции - тоже выполнился успешно:
    ![2.png](/HomeWorks/Lesson20/2.png)
 
+Дальше, решил не извращаться, с избеганиями использования строкового ключа секционирования в определениях партиций.
+И, всё таки, побить таблицу используя строковые значения в определении условий разбиения.
+Тогда, оно, хотя бы сможет сделать партишен-прунинг.
+На перфоманс, в данном случае, это никак не повлияет, из за хорошо подходящих для запросов индексов.
+Но, хотя бы можно будет увидеть что - да: партишен-прунинг делается.
 
-
-psql -d demo -t -c "select ticket_no, flight_id from ticket_flights order by 1, 2;" > /tmp/temp.txt
-v_count="1"
-v_count2="1"
-v_trshld="105000"
-v_x=""
-v_tf=()
-while read line; do
-      if [ "$v_count2" -eq "1" ]; then
-         v_x=$(echo -n "$line" | cut -f 1 -d "|" | tr -d [:space:] )
-         echo "$v_count2 $v_x"
-         v_tf+=($v_x)
-      fi
-      v_count=$((v_count+1))
-      v_count2=$((v_count2+1))
-      if [ "$v_count" -eq "$v_trshld" ]; then
-         v_x=$(echo -n "$line" | cut -f 1 -d "|" | tr -d [:space:] )
-         echo "$v_count2 $v_x"
-         v_tf+=($v_x)
-         v_count="1"
-      fi
-done < <(cat /tmp/temp.txt)
-
-v_x=""
-v_y=""
-v_str=""
-cat /dev/null > /tmp/temp2.txt
-for i in ${!v_tf[@]}; do
-    echo "${v_tf[$i]}"
-    if [ "$i" -eq "0" ]; then
-       v_x="${v_tf[$i]}"
-    else
-       v_y="${v_tf[$i]}"
-       v_y=$( echo -n ${v_y} | sed -r "s/^0+//" )
-       v_y=$((v_y-1))
-       v_y="000${v_y}" #yes, I know
-       v_str=$(echo -n "select min(flight_id) as co1l, max(flight_id) as col2 from ticket_flights where ticket_no>='${v_x}' and ticket_no<'${v_y}';")
-       v_str=$( psql -d demo -t -q -c "$v_str" | tr -d [:cntrl:] )
-       v_low=$( echo -n "$v_str" | cut -f 1 -d "|" )
-       v_hi=$( echo -n "$v_str" | cut -f 2 -d "|" )
-       echo "${v_x} ${v_y} ${v_low} ${v_hi}" | tee -a "/tmp/temp2.txt"
-       v_x="${v_tf[$i]}"
-    fi
-done
-
-cat "/tmp/temp2.txt" | awk '{printf "create table ticket_flights_range_p%d partition of ticket_flights_range for values from ('\''%s'\'', %d) to ('\''%s'\'', %d);\n", NR, $1, $3, $2, $4;}'
-
+Набил набор shell-команд, которыми готовятся sql-статементы определяющие партиции: [generator.sh](/HomeWorks/Lesson20/generator.sh)
+В итоге получилась такая совокупность команд:
+```sql
 CREATE TABLE ticket_flights_range (
     ticket_no character(13) NOT NULL,
     flight_id integer NOT NULL,
@@ -571,7 +532,7 @@ CREATE TABLE ticket_flights_range (
     CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
    )
    partition by range(ticket_no, ticket_no);
---alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
+
 create table ticket_flights_range_default partition of ticket_flights_range default;
 create table ticket_flights_range_p1 partition of ticket_flights_range for values from ('0005432000987', 1) to ('0005432569011', 31341);
 create table ticket_flights_range_p2 partition of ticket_flights_range for values from ('0005432569012', 1) to ('0005432949091', 32518);
@@ -583,9 +544,49 @@ create table ticket_flights_range_p7 partition of ticket_flights_range for value
 create table ticket_flights_range_p8 partition of ticket_flights_range for values from ('0005434878085', 245) to ('0005435214745', 33121);
 create table ticket_flights_range_p9 partition of ticket_flights_range for values from ('0005435214746', 1038) to ('0005435626534', 33121);
 
-
 insert into ticket_flights_range select * from ticket_flights;
 commit;
 alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
+-- to ask namely and only parent-table -------------
+-- select count(*) from only ticket_flights_range; 
+----------------------------------------------------
+```
 
-# select count(*) from only ticket_flights_range;
+Из любопытства добавил default-секцию.
+Плюс, как чувствовал что накосячу с вычислением диапазонов и всё аккуратно по партициям разложить, с первого подхода не получится.
+Так и случилось.
+Без дефаулт-секции получал ошибки вида:
+```sql
+[local]:5432 #postgres@demo > insert into ticket_flights_range select * from ticket_flights;                                       ERROR:  no partition of relation "ticket_flights_range" found for row
+DETAIL:  Partition key of the failing row contains (ticket_no, ticket_no) = (0005434435160, 0005434435160).
+```
+
+С дефаулт-секцией: всё что не смогло смаппироваться в какую то регулярную секцию - улетело в дефаулт-секцию.
+```sql
+select  n.nspname
+       ,pa.rolname||'.'||t.relname as db_object
+       ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
+       ,pg_table_size(t.oid) as t_size
+       ,pg_total_relation_size(t.oid) as ti_size
+from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
+where 1=1
+  and t.relkind='r'
+  and t.relnamespace=n.oid
+  and t.relowner=pa.oid
+  and t.relname in ('ticket_flights','ticket_flights_range_default','ticket_flights_range_p1','ticket_flights_range_p2','ticket_flights_range_p3','ticket_flights_range_p4','ticket_flights_range_p5','ticket_flights_range_p6','ticket_flights_range_p7','ticket_flights_range_p8','ticket_flights_range_p9')
+order by t.reltuples desc;
+ nspname  |               db_object               |     est_rows     |  t_size  |  ti_size
+----------+---------------------------------------+------------------+----------+-----------
+ bookings | postgres.ticket_flights               |          1045730 | 71442432 | 113917952
+ bookings | postgres.ticket_flights_range_p4      |           104998 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p1      |           104997 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p5      |           104997 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p8      |           104997 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p7      |           104996 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p9      |           104995 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p3      |           104995 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p6      |           104994 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_p2      |           104994 |  7200768 |   7200768
+ bookings | postgres.ticket_flights_range_default |           100763 |  6914048 |   6914048
+(11 rows)
+```
