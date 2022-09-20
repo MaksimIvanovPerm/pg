@@ -128,9 +128,10 @@ CREATE TABLE measurement_y2006m02 PARTITION OF measurement FOR VALUES FROM ('200
 Но, как обычно, для этого есть пг-расширения, например [pg_partman](https://github.com/pgpartman/pg_partman)
 
 Формулировка ДЗ: `Секционировать большую таблицу из демо базы flights`
-Нашёл демо-базу, которая тут подразумевается, про авиаперевозки, на [сайте пгпро](https://postgrespro.com/education/demodb).
+Не понял - где брать эту демо базу.
+Спросил у гугла, в первой же позиции данных гугл-поска нашлась какая то демо-база, про авиаперевозки, на [сайте пгпро](https://postgrespro.com/education/demodb).
 
-Установка демо-бд (!!! оно пересоздаёт базу DEMO !!!):
+Установка этой демо-бд (!!! оно пересоздаёт базу DEMO !!!):
 ```shell
 sudo su postgre
 wget -O 1.zip https://edu.postgrespro.com/demo-small-en.zip
