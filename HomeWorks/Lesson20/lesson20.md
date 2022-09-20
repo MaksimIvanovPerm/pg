@@ -390,7 +390,7 @@ col2 | 366733
    ```
 4. Размеры таблиц, исходной/целевой, таблиц-партиций:
    ```sql
-   [local]:5432 #postgres@demo > select  n.nspname
+   select  n.nspname
        ,pa.rolname||'.'||t.relname as db_object
        ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
        ,pg_table_size(t.oid) as t_size
