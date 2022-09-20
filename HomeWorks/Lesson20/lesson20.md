@@ -227,6 +227,7 @@ ORDER BY t.ticket_no, f.scheduled_departure;
 __EOF__
 ```
 Давайте этот запрос, здесь и далее, называть `Q1`
+
 Ну. 
 Выше видно что есть `"ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)`;
 И есть `"tickets_pkey" PRIMARY KEY, btree (ticket_no)` на таблицу `tickets`;
@@ -249,6 +250,7 @@ ORDER BY f.scheduled_departure;
 ```
 
 Давайте этот запрос, здесь и далее, называть `Q2`
+
 В `Q2`, если уникальных значений, именно в поле `ticket_no` - немного, относительно общего кол-ва строк в таблице `ticket_flights` секционирование - очень даже может помочь.
 Что там с уникальностью:
 ```sql
