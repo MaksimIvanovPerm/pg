@@ -384,13 +384,13 @@ col2 | 366733
        ,to_char(CAST(t.reltuples AS numeric), '999999999999999') as est_rows
        ,pg_table_size(t.oid) as t_size
        ,pg_total_relation_size(t.oid) as ti_size
-from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
-where 1=1
-  and t.relkind='r'
-  and t.relnamespace=n.oid
-  and t.relowner=pa.oid
-  and t.relname in ('ticket_flights_hashed','ticket_flights','ticket_flights_hashed_p0','ticket_flights_hashed_p1','ticket_flights_hashed_p2','ticket_flights_hashed_p3','ticket_flights_hashed_p4')
-order by t.reltuples desc;
+   from pg_catalog.pg_class t, pg_catalog.pg_namespace n, pg_catalog.pg_authid pa
+   where 1=1
+     and t.relkind='r'
+     and t.relnamespace=n.oid
+     and t.relowner=pa.oid
+     and t.relname in ('ticket_flights_hashed','ticket_flights','ticket_flights_hashed_p0','ticket_flights_hashed_p1','ticket_flights_hashed_p2','ticket_flights_hashed_p3','ticket_flights_hashed_p4')
+   order by t.reltuples desc;
     nspname  |             db_object             |     est_rows     |  t_size  |  ti_size
    ----------+-----------------------------------+------------------+----------+-----------
     bookings | postgres.ticket_flights           |          1045730 | 71442432 | 113917952
@@ -402,22 +402,22 @@ order by t.reltuples desc;
    (6 rows)
    ```
    Ещё интересный запрос, с учётом связей партиционированной таблицы и её партиций:
-```sql
+   ```sql
    [local]:5432 #postgres@demo > select  n.nspname
        ,v1.relname as table_name
        ,p1.relname as partition_name
        ,pg_table_size(v1.inhrelid) as part_size
        ,pg_total_relation_size(v1.inhrelid)-pg_table_size(v1.inhrelid) as part_idx_size
-from (
+   from (
        select  p.relname, p.relnamespace, i.inhrelid
        from pg_inherits i, pg_class p
        where p.relkind='p'
          and p.relname='ticket_flights_hashed'
          and i.inhparent=p.oid
        ) v1, pg_class p1, pg_catalog.pg_namespace n
-where v1.relnamespace=n.oid
-  and v1.inhrelid=p1.oid
-;
+   where v1.relnamespace=n.oid
+     and v1.inhrelid=p1.oid
+   ;
     nspname  |      table_name       |      partition_name      | part_size | part_idx_size
    ----------+-----------------------+--------------------------+-----------+---------------
     bookings | ticket_flights_hashed | ticket_flights_hashed_p0 |  14319616 |      11124736
