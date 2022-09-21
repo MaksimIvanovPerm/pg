@@ -227,6 +227,7 @@ ORDER BY t.ticket_no, f.scheduled_departure;
 __EOF__
 ```
 Давайте этот запрос, здесь и далее, называть `Q1`
+Запрос - ничего не возвращает, 0 строк, это важно, для дальнейшего рассмотрения.
 
 Ну. 
 Выше видно что есть `"ticket_flights_pkey" PRIMARY KEY, btree (ticket_no, flight_id)`;
@@ -250,6 +251,7 @@ ORDER BY f.scheduled_departure;
 ```
 
 Давайте этот запрос, здесь и далее, называть `Q2`
+Запрос - возвращает 6 строк.
 
 В `Q2`, если уникальных значений, именно в поле `ticket_no` - немного, относительно общего кол-ва строк в таблице `ticket_flights` секционирование - очень даже может помочь.
 Что там с уникальностью:
@@ -541,7 +543,7 @@ CREATE TABLE ticket_flights_range (
     CONSTRAINT ticket_flights_amount_check CHECK ((amount >= (0)::numeric)),
     CONSTRAINT ticket_flights_fare_conditions_check CHECK (((fare_conditions)::text = ANY (ARRAY[('Economy'::character varying)::text, ('Comfort'::character varying)::text, ('Business'::character varying)::text])))
    )
-   partition by range(ticket_no, ticket_no);
+   partition by range(ticket_no, flight_id);
 
 create table ticket_flights_range_default partition of ticket_flights_range default;
 create table ticket_flights_range_p1 partition of ticket_flights_range for values from ('0005432000987', 1) to ('0005432569011', 31341);
@@ -555,7 +557,6 @@ create table ticket_flights_range_p8 partition of ticket_flights_range for value
 create table ticket_flights_range_p9 partition of ticket_flights_range for values from ('0005435214746', 1038) to ('0005435626534', 33121);
 
 insert into ticket_flights_range select * from ticket_flights;
-commit;
 alter table ticket_flights_range add constraint ticket_flights_hashed_pk primary key (ticket_no, flight_id);
 -- to ask namely and only parent-table -------------
 -- select count(*) from only ticket_flights_range; 
@@ -604,7 +605,8 @@ order by t.reltuples desc;
 Планы выполнений демо-запросов, при использовании нормально range-секционированной ипостаси таблицы `ticket_flights`.
 Тексты запросов - добавил в файлы с планами, чтобы не скроллить вверх.
 
-`Q1` [опять же](/HomeWorks/Lesson20/plan3_q1_range.txt) - без разницы, относительно планов выполнения выше, по костам и по существу плана - перебирает все партиции.
+`Q1` [опять же](/HomeWorks/Lesson20/plan3_q1_range.txt) - без разницы, относительно планов выполнения выше, по существу плана.
+Т.е. перебирает все партиции, но не заходит ни в одну: `never executed`
 Ну. Видимо такие данные перебираются, что приходится бегать по всем партициям.
 
 По запросу `Q2` интереснее.
@@ -623,6 +625,98 @@ order by t.reltuples desc;
    Ну. Т.е., кратно больший кост.
    Т.е. если бы хорошего индекса и хорошего, для индекса, запроса к данным - не было, партиционированием может получится снизить кост выполнения запроса.
    Кроме того - партиционирование: хороший подход для организации ротирования (удаления), бэкапирования табличных данных.
+
+Ещё, стало интересно - если оно такое partition-aware, то оно и тогда - должно мочь в partition-wise join-ы.
+В исходном `Q2` запросе, то с чем джойнится `ticket_flights`, т.е.: `flights_v` - это вью, с таким определением:
+```sql
+CREATE VIEW flights_v AS
+ SELECT f.flight_id,
+    f.flight_no,
+    f.scheduled_departure,
+    timezone(dep.timezone, f.scheduled_departure) AS scheduled_departure_local,
+    f.scheduled_arrival,
+    timezone(arr.timezone, f.scheduled_arrival) AS scheduled_arrival_local,
+    (f.scheduled_arrival - f.scheduled_departure) AS scheduled_duration,
+    f.departure_airport,
+    dep.airport_name AS departure_airport_name,
+    dep.city AS departure_city,
+    f.arrival_airport,
+    arr.airport_name AS arrival_airport_name,
+    arr.city AS arrival_city,
+    f.status,
+    f.aircraft_code,
+    f.actual_departure,
+    timezone(dep.timezone, f.actual_departure) AS actual_departure_local,
+    f.actual_arrival,
+    timezone(arr.timezone, f.actual_arrival) AS actual_arrival_local,
+    (f.actual_arrival - f.actual_departure) AS actual_duration
+   FROM flights f,
+    airports dep,
+    airports arr
+  WHERE ((f.departure_airport = dep.airport_code) AND (f.arrival_airport = arr.airport_code));
+```
+Ну. Подготовил секционированную версию таблицы `flights_range`, глядя на то как была определена исходная `flights`;
+Тут, опять же важно что `flight_id` столбец имеет `NOT NULL`;
+Cекционировал `flights_range` по диапазонам значений `flight_id`
+Загрузил в неё данные из `flights`
+```sql
+--drop table flights_range
+CREATE TABLE flights_range (
+    flight_id integer NOT NULL,
+    flight_no character(6) NOT NULL,
+    scheduled_departure timestamp with time zone NOT NULL,
+    scheduled_arrival timestamp with time zone NOT NULL,
+    departure_airport character(3) NOT NULL,
+    arrival_airport character(3) NOT NULL,
+    status character varying(20) NOT NULL,
+    aircraft_code character(3) NOT NULL,
+    actual_departure timestamp with time zone,
+    actual_arrival timestamp with time zone,
+    CONSTRAINT flights_check CHECK ((scheduled_arrival > scheduled_departure)),
+    CONSTRAINT flights_check1 CHECK (((actual_arrival IS NULL) OR ((actual_departure IS NOT NULL) AND (actual_arrival IS NOT NULL) AND (actual_arrival > actual_departure)))),
+    CONSTRAINT flights_status_check CHECK (((status)::text = ANY (ARRAY[('On Time'::character varying)::text, ('Delayed'::character varying)::text, ('Departed'::character varying)::text, ('Arrived'::character varying)::text, ('Scheduled'::character varying)::text, ('Cancelled'::character varying)::text])))
+)partition by range(flight_id)
+;
+create table flights_range_default partition of flights_range default;
+create table flights_range_p1 partition of flights_range for values from (1) to (2999);
+create table flights_range_p2 partition of flights_range for values from (3000) to (5999);
+create table flights_range_p3 partition of flights_range for values from (6000) to (8999);
+create table flights_range_p4 partition of flights_range for values from (9000) to (11999);
+create table flights_range_p5 partition of flights_range for values from (12000) to (14999);
+create table flights_range_p6 partition of flights_range for values from (15000) to (17999);
+create table flights_range_p7 partition of flights_range for values from (18000) to (20999);
+create table flights_range_p8 partition of flights_range for values from (21000) to (23999);
+create table flights_range_p9 partition of flights_range for values from (24000) to (26999);
+create table flights_range_p10 partition of flights_range for values from (27000) to (29999);
+create table flights_range_p11 partition of flights_range for values from (30000) to (32999);
+create table flights_range_p12 partition of flights_range for values from (33000) to (maxvalue);
+insert into flights_range select * from flights;
+alter table flights_range add constraint flights_range_pk primary key (flight_id);
+```
+Создал вью `flights_v_range_parted` - подставил в текст запроса `flights_range`.
+В текст запроса `Q2` вписал использование `flights_v_range_parted` и `flights_range`.
+Т.е. вот так:
+```sql
+SELECT   to_char(f.scheduled_departure, 'DD.MM.YYYY') AS when,
+         f.departure_city || ' (' || f.departure_airport || ')' AS departure,
+         f.arrival_city || ' (' || f.arrival_airport || ')' AS arrival,
+         tf.fare_conditions AS class,
+         tf.amount
+FROM     ticket_flights_range tf
+         JOIN flights_v_range_parted f ON tf.flight_id = f.flight_id
+WHERE    tf.ticket_no = '0005432661915'
+ORDER BY f.scheduled_departure;
+```
+
+В таком запросе, особенно если `tf.ticket_no` - заиндексирован и имеет `not null`: `flights_v_range_parted` должен быть ведомым датасорсом.
+`tf.ticket_no` - имеет `not null`, а вот индекс на него я удалил, для прошлого эксперимента.
+Ну, опять же - это, т.е.: `tf.ticket_no` ключ секционирования и условие `tf.ticket_no = '0005432661915'` - должно, вместе с `not null` дать партишен-прунинг на `ticket_flights_range`
+
+Выполнил `anayze verbose`, в demo-бд.
+Ну. Если PWJ - работает, то сейчас, в плане выполнения, должны увидеть, в рантайме, перебор партиции `flights_range`, при отработке условия джойна `ON tf.flight_id = f.flight_id`
+Но, при этом, оно, не заходя в партиции - будет понимать есть/не есть, в данной партиции от `flights_range`, искомые данные.
+Ну, так и есть - [план выполнения](/HomeWorks/Lesson20/plan3_q2_PWS.txt).
+
 
 В целом: ну, весьма не плохо.
 

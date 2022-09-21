@@ -43,3 +43,7 @@ for i in ${!v_tf[@]}; do
 done
 
 cat "/tmp/temp2.txt" | awk '{printf "create table ticket_flights_range_p%d partition of ticket_flights_range for values from ('\''%s'\'', %d) to ('\''%s'\'', %d);\n", NR, $1, $3, $2, $4;}'
+
+#### flights
+
+psql -d demo -t -c "select flight_id from flights order by 1;" > /tmp/temp.txt

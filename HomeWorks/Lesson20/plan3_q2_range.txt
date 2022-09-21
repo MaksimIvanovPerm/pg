@@ -7,43 +7,43 @@ FROM     ticket_flights_range tf
          JOIN flights_v f ON tf.flight_id = f.flight_id
 WHERE    tf.ticket_no = '0005432661915'
 ORDER BY f.scheduled_departure;
-                                                                                                                                             QUERY PLAN                                                                                                                                              
+                                                                                                                                              QUERY PLAN                                                                                                                                              
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=86.94..86.95 rows=6 width=118) (actual time=0.709..0.711 rows=6 loops=1)
+ Sort  (cost=86.94..86.95 rows=6 width=118) (actual time=0.449..0.452 rows=6 loops=1)
    Output: (to_char(f.scheduled_departure, 'DD.MM.YYYY'::text)), (((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text)), (((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text)), tf.fare_conditions, tf.amount, f.scheduled_departure
    Sort Key: f.scheduled_departure
    Sort Method: quicksort  Memory: 25kB
-   ->  Nested Loop  (cost=5.02..86.86 rows=6 width=118) (actual time=0.503..0.680 rows=6 loops=1)
+   ->  Nested Loop  (cost=5.02..86.86 rows=6 width=118) (actual time=0.285..0.416 rows=6 loops=1)
          Output: to_char(f.scheduled_departure, 'DD.MM.YYYY'::text), ((((ml.city ->> lang()) || ' ('::text) || (f.departure_airport)::text) || ')'::text), ((((ml_1.city ->> lang()) || ' ('::text) || (f.arrival_airport)::text) || ')'::text), tf.fare_conditions, tf.amount, f.scheduled_departure
          Inner Unique: true
-         ->  Nested Loop  (cost=4.87..82.73 rows=6 width=79) (actual time=0.124..0.248 rows=6 loops=1)
+         ->  Nested Loop  (cost=4.87..82.73 rows=6 width=79) (actual time=0.051..0.145 rows=6 loops=1)
                Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport, ml.city
                Inner Unique: true
-               ->  Nested Loop  (cost=4.73..81.77 rows=6 width=30) (actual time=0.114..0.225 rows=6 loops=1)
+               ->  Nested Loop  (cost=4.73..81.77 rows=6 width=30) (actual time=0.043..0.126 rows=6 loops=1)
                      Output: tf.fare_conditions, tf.amount, f.scheduled_departure, f.departure_airport, f.arrival_airport
                      Inner Unique: true
-                     ->  Append  (cost=4.44..31.92 rows=6 width=18) (actual time=0.092..0.174 rows=6 loops=1)
-                           ->  Bitmap Heap Scan on bookings.ticket_flights_range_p2 tf_1  (cost=4.44..15.95 rows=3 width=18) (actual time=0.092..0.136 rows=6 loops=1)
+                     ->  Append  (cost=4.44..31.92 rows=6 width=18) (actual time=0.029..0.088 rows=6 loops=1)
+                           ->  Bitmap Heap Scan on bookings.ticket_flights_range_p2 tf_1  (cost=4.44..15.95 rows=3 width=18) (actual time=0.029..0.071 rows=6 loops=1)
                                  Output: tf_1.fare_conditions, tf_1.amount, tf_1.flight_id
                                  Recheck Cond: (tf_1.ticket_no = '0005432661915'::bpchar)
                                  Heap Blocks: exact=6
-                                 ->  Bitmap Index Scan on ticket_flights_range_p2_pkey  (cost=0.00..4.44 rows=3 width=0) (actual time=0.076..0.076 rows=6 loops=1)
+                                 ->  Bitmap Index Scan on ticket_flights_range_p2_pkey  (cost=0.00..4.44 rows=3 width=0) (actual time=0.019..0.020 rows=6 loops=1)
                                        Index Cond: (tf_1.ticket_no = '0005432661915'::bpchar)
-                           ->  Bitmap Heap Scan on bookings.ticket_flights_range_default tf_2  (cost=4.44..15.94 rows=3 width=18) (actual time=0.035..0.035 rows=0 loops=1)
+                           ->  Bitmap Heap Scan on bookings.ticket_flights_range_default tf_2  (cost=4.44..15.94 rows=3 width=18) (actual time=0.014..0.015 rows=0 loops=1)
                                  Output: tf_2.fare_conditions, tf_2.amount, tf_2.flight_id
                                  Recheck Cond: (tf_2.ticket_no = '0005432661915'::bpchar)
-                                 ->  Bitmap Index Scan on ticket_flights_range_default_pkey  (cost=0.00..4.44 rows=3 width=0) (actual time=0.034..0.035 rows=0 loops=1)
+                                 ->  Bitmap Index Scan on ticket_flights_range_default_pkey  (cost=0.00..4.44 rows=3 width=0) (actual time=0.014..0.014 rows=0 loops=1)
                                        Index Cond: (tf_2.ticket_no = '0005432661915'::bpchar)
-                     ->  Index Scan using flights_pkey on bookings.flights f  (cost=0.29..8.31 rows=1 width=20) (actual time=0.007..0.007 rows=1 loops=6)
+                     ->  Index Scan using flights_pkey on bookings.flights f  (cost=0.29..8.31 rows=1 width=20) (actual time=0.005..0.005 rows=1 loops=6)
                            Output: f.flight_id, f.flight_no, f.scheduled_departure, f.scheduled_arrival, f.departure_airport, f.arrival_airport, f.status, f.aircraft_code, f.actual_departure, f.actual_arrival
                            Index Cond: (f.flight_id = tf.flight_id)
-               ->  Index Scan using airports_data_pkey on bookings.airports_data ml  (cost=0.14..0.16 rows=1 width=53) (actual time=0.003..0.003 rows=1 loops=6)
+               ->  Index Scan using airports_data_pkey on bookings.airports_data ml  (cost=0.14..0.16 rows=1 width=53) (actual time=0.002..0.002 rows=1 loops=6)
                      Output: ml.airport_code, ml.airport_name, ml.city, ml.coordinates, ml.timezone
                      Index Cond: (ml.airport_code = f.departure_airport)
          ->  Index Scan using airports_data_pkey on bookings.airports_data ml_1  (cost=0.14..0.16 rows=1 width=53) (actual time=0.003..0.003 rows=1 loops=6)
                Output: ml_1.airport_code, ml_1.airport_name, ml_1.city, ml_1.coordinates, ml_1.timezone
                Index Cond: (ml_1.airport_code = f.arrival_airport)
- Planning Time: 1.598 ms
- Execution Time: 1.522 ms
+ Planning Time: 1.545 ms
+ Execution Time: 1.230 ms
 (36 rows)
 
