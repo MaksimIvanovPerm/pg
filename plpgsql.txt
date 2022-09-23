@@ -1,0 +1,23 @@
+-- https://www.postgresqltutorial.com/postgresql-plpgsql/
+create or replace function func1(p_delay integer)
+returns integer 
+as
+$code$
+declare
+begin
+     if  p_delay is null or p_delay <= 0 then
+         raise exception 'p_delay parameter has to be positive integer, instead of: %s', p_delay;
+     end if;
+     perform pg_sleep(p_delay); -- https://www.postgresql.org/docs/14/plpgsql-statements.html
+     return p_delay;
+end;
+$code$
+language plpgsql;
+
+CREATE OR REPLACE FUNCTION increment(i integer) RETURNS integer AS $$
+        BEGIN
+                RETURN i + 1;
+        END;
+$$ LANGUAGE plpgsql;
+
+https://pgconf.ru/media/2019/02/11/Fast.pdf
