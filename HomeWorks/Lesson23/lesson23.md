@@ -1,52 +1,20 @@
--- ДЗ тема: триггеры, поддержка заполнения витрин
-
-DROP SCHEMA IF EXISTS pract_functions CASCADE;
-CREATE SCHEMA pract_functions;
-
-SET search_path = pract_functions, public;
-
--- товары:
-CREATE TABLE goods
-(
-    goods_id    integer PRIMARY KEY,
-    good_name   varchar(63) NOT NULL,
-    good_price  numeric(12, 2) NOT NULL CHECK (good_price > 0.0)
-);
-
-INSERT INTO goods (goods_id, good_name, good_price) VALUES (1, 'Спички хозайственные', .50);
-INSERT INTO goods (goods_id, good_name, good_price) VALUES (2, 'Автомобиль Ferrari FXX K', 185000000.01);
-
--- Продажи
-CREATE TABLE sales
-(
-    sales_id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    good_id     integer REFERENCES goods (goods_id),
-    sales_time  timestamp with time zone DEFAULT now(),
-    sales_qty   integer CHECK (sales_qty > 0)
-);
-
-INSERT INTO sales (good_id, sales_qty) VALUES (1, 10), (1, 1), (1, 120), (2, 1);
-
--- отчет:
+Понял ДЗ таким образом: по легенде - выполнять скл-запрос
+```sql
 SELECT G.good_name, sum(G.good_price * S.sales_qty)
 FROM goods G
 INNER JOIN sales S ON S.good_id = G.goods_id
 GROUP BY G.good_name;
+```
 
--- с увеличением объёма данных отчет стал создаваться медленно
--- Принято решение денормализовать БД, создать таблицу
-CREATE TABLE good_sum_mart
-(
-good_name   varchar(63) NOT NULL,
-sum_sale    numeric(16, 2)NOT NULL
-);
+Стало слишком дорого.
+Соответственно надо чтобы, в витрине данных актуальность итоговых данных по продажам каждого конкретного продукта обновлялась, так сказать - инткрементально.
+Т.е.: вот есть в витрине данных итоговая цифра, по выручке с продаж какого то конкретного товара и вот в таблицу с данными по продахам - прилетел какой то дмл, который как то изменяет данные по продажам этого товара.
+Ну, например: новые продажи, изменение старых продаж, удаление старых продаж.
 
--- Создать триггер (на таблице sales) для поддержки.
--- Подсказка: не забыть, что кроме INSERT есть еще UPDATE и DELETE
+Так пусть дмл-триггер высчитывает выручку по изменениям которым этого, конкретного дмл-я и плюсует(или вычитает, смотря - что за изменение) в итоговую цифру в витрине.
 
--- Чем такая схема (витрина+триггер) предпочтительнее отчета, создаваемого "по требованию" (кроме производительности)?
--- Подсказка: В реальной жизни возможны изменения цен.
-
+Ну. Накодировал такую триггерную ф-цию и такой триггер:
+```sql
 CREATE OR REPLACE FUNCTION func1() 
 RETURNS TRIGGER
 AS
@@ -153,13 +121,23 @@ BEGIN
 end;
 $$
 LANGUAGE plpgsql;
+```
 
-
+```sql
 --drop trigger change_sales_trig on sales;
 CREATE or replace TRIGGER change_sales_trig
 AFTER INSERT OR UPDATE OR DELETE ON sales
 FOR EACH ROW EXECUTE FUNCTION func1();
+```
 
-delete from sales;
-select gsm.* from good_sum_mart gsm order by good_name;
-INSERT INTO sales (good_id, sales_qty) VALUES (1, 10), (1, 1), (1, 120), (2, 1);
+Несколько поотлаживал её.
+Потом пришла в голову мысль: как проверить - надо удалить все данные из sales-таблицы.
+После этого, в витрине: должны остаться записи по всем товарам, удалённым из sales-таблицы.
+И с одинаковым итогом, по продажам: 0, раз все продажи - удалили.
+
+Потом добавить записи в sales-таблицу, так как это деается в скрипте `hw_triggers.sql`
+Триггер должен их обработать, в витрине должны появится все товары по которым есть продажи в sales;
+И итоги, по продажам, которые можно перепроверить аналитическим sql-запросом - должны сопадать.
+
+И да - совпадают:
+![План выполнения](/HomeWorks/Lesson23/1.png)
