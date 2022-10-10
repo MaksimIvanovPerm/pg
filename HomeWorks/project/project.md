@@ -85,7 +85,7 @@ runit
 ```
 
 Далее от `postgres` ОС-аккаунта:
-
+```shell
 export ETCD_CONF="${HOME}/etcd.yml"
 export ETCD_LOG="${HOME}/etcd_logfile"
 export ETCDCTL_API=3
@@ -120,17 +120,14 @@ __EOF__
     fi
 done
 echo "initial-cluster: \"$v_initialcluster\"" >> "$ETCD_CONF"
+echo "initial-cluster-state: 'new'
+initial-cluster-token: 'etcd-cluster-1'" >> "$ETCD_CONF"
+
 echo "`whoami` ${ETCD_CONF}"
 cat "$ETCD_CONF"
-
-
-
-!!!!На одной из нод выполнить дописать в `ETCD_CONF`:
 ```
-initial-cluster-state: 'new'
-initial-cluster-token: 'etcd-cluster-1'
-```
-Выполнить на этой ноде.
+
+Выполнить на какой то ноде.
 ```
 export ETCD_CONF="${HOME}/etcd.yml"
 export ETCD_LOG="${HOME}/etcd_logfile"
@@ -139,6 +136,12 @@ nohup etcd --config-file "$ETCD_CONF" > "$ETCD_LOG" 2>&1 &
 ```
 
 При запуске процесса - выполнить эту же команду на остальных нодах.
+Спросить про состояние кластера:
+```shell
+export ETCDCTL_API=2
+etcdctl cluster-health
+etcdctl member list
+```
 
 Удалить ноду:
 ```
@@ -150,6 +153,7 @@ etcdctl member remove fce50bcd610e3fb7
 Только нужно поправить: `initial-cluster-state: 'existing'`
 Выполнить:
 ```
+#at newly added node
 #rm -rf $HOME/etcd/data/member; find $HOME/etcd -type f -delete
 #somewhere in live part of cluster
 export ETCDCTL_API=3
