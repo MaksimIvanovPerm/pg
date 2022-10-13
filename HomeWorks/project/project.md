@@ -260,7 +260,7 @@ export ETCDCTL_API=2; etcdctl member list
 fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=http://192.168.0.12:2379 isLeader=false
 export ETCDCTL_API=3; etcdctl --user=root:qqq1 move-leader 7a0fb1a3031d4c79
 Leadership transferred from 863e81c7efce4cd9 to 7a0fb1a3031d4c79
-root@postgresql2:/home/student# export ETCDCTL_API=2; etcdctl member list
+export ETCDCTL_API=2; etcdctl member list
 7a0fb1a3031d4c79: name=postgresql1 peerURLs=http://192.168.0.10:2380 clientURLs=http://192.168.0.10:2379 isLeader=true
 863e81c7efce4cd9: name=postgresql2 peerURLs=http://192.168.0.11:2380 clientURLs=http://192.168.0.11:2379 isLeader=false
 fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=http://192.168.0.12:2379 isLeader=false
