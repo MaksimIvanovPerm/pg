@@ -1,4 +1,5 @@
-Подготовка вм в YC
+# Подготовка вм в YC
+
 В своём каталоге - создать днс-зону, для днс-записей внутренней подсети, которая будет использоваться для интерконнекта, между виртуалками:
 
 ![1](/HomeWorks/project/1.png)
@@ -11,7 +12,9 @@
 
 PTR-записи будут определены автоматически.
 
-Заготовка для выполнения команд на нодах:
+Заготовка для выполнения команд на нодах.
+И установка `postgresql`, etcd-ПО, сборка etcd-кластера совсем вручную.
+
 ```shell
 eval "$(ssh-agent -s)"
 ssh-add ~/otus/yacloud
@@ -54,6 +57,7 @@ export v_targetfile="/tmp/script.sh"
 export v_runuser="root"
 
 cat << __EOF__ > "$v_localfile"
+apt update; apt upgrade -y
 apt install net-tools etcd -y
 apt autoremove -y
 systemctl enable etcd
@@ -138,9 +142,11 @@ nohup etcd --config-file "$ETCD_CONF" > "$ETCD_LOG" 2>&1 &
 При запуске процесса - выполнить эту же команду на остальных нодах.
 Спросить про состояние кластера:
 ```shell
-export ETCDCTL_API=2
-etcdctl cluster-health
-etcdctl member list
+export ETCDCTL_API=2; etcdctl cluster-health
+export ETCDCTL_API=3; etcdctl member list -w table
+export ETCDCTL_API=2; etcdctl member list
+ENDPOINTS=$(etcdctl member list | grep -o "[^ ]\+:2379" | paste -s -d ",")
+export ETCDCTL_API=3; etcdctl endpoint status --endpoints=$ENDPOINTS -w table
 ```
 
 Удалить ноду:
@@ -166,3 +172,139 @@ etcdctl member add postgresql3 --peer-urls='http://192.168.0.12:2380'
 #at new node
 nohup etcd --config-file "$ETCD_CONF" > "$ETCD_LOG" 2>&1 &
 ```
+
+# Сборка etcd-кластера с использованием `systemd` и стандартным расположением кофнигурации, дата-директории.
+
+[etcd-дока](https://etcd.io/docs/v3.5/)
+Дефолтный конфиг расположен в `/etc/default/etcd`, это месторасположение угадывается из вывода `systemctl edit etcd.service --full`, по настройке `EnvironmentFile`;
+[дока](https://etcd.io/docs/v3.5/op-guide/configuration/) по пар-рам конфигурации `etcd`.
+Делаем такой файл, на первой ноде:
+```shell
+egrep "^[^#].*" /etc/default/etcd | sort -k 1 -t "="
+ETCD_ADVERTISE_CLIENT_URLS="http://192.168.0.10:2379"
+ETCD_DATA_DIR="/var/lib/etcd/default"
+ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.0.10:2380"
+ETCD_INITIAL_CLUSTER="postgresql3=http://192.168.0.12:2380,postgresql2=http://192.168.0.11:2380,postgresql1=http://192.168.0.10:2380"
+ETCD_INITIAL_CLUSTER_STATE="new"
+ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster-1"
+ETCD_LISTEN_CLIENT_URLS="http://192.168.0.10:2379,http://127.0.0.1:2379"
+ETCD_LISTEN_PEER_URLS="http://192.168.0.10:2380"
+ETCD_NAME="postgresql1"
+```
+
+Папка `/var/lib/etcd/default` - уже есть и с правильными модами (700);
+На остальных нодах - конфигурационный файл: будет такой же, с точностью до ip-адреса ноды и имени ноды и списка нод в `ETCD_INITIAL_CLUSTER`
+Запуск службы: 
+```shell
+systemctl start etcd.service; systemctl status etcd.service
+```
+Смотреть логи сервиса оформленого с помощью systemd-службы придётся так: `journalctl -u etcd -f`
+Поменять дефолтный редактор для systemctl-я можно так:
+`export SYSTEMD_EDITOR="/usr/bin/vim"`
+
+Если всё хорошо: задаём автозапуск etcd-службы: `systemctl enable etcd.service`
+Готовим etcd-конфиг на следующей ноде, например - вторая нода, т.е.: `ETCD_NAME="postgresql2"`
+На этой ноде, в т.ч., будет другое значение пар-ров:
+```
+ETCD_INITIAL_CLUSTER_STATE="existing"
+ETCD_INITIAL_CLUSTER="postgresql2=http://192.168.0.11:2380,postgresql1=http://192.168.0.10:2380"
+```
+Анонсируем ноду в кластере, на стороне уже работающей в кластере ноды:
+
+```
+export ETCDCTL_API=2; etcdctl cluster-health
+export ETCDCTL_API=3; etcdctl member add postgresql2 --peer-urls="http://192.168.0.11:2380"
+export ETCDCTL_API=3; etcdctl member list -w table
+```
+На стороне вновь добавляемой ноды - контролировать, что в `ETCD_DATA_DIR` - нет образа бд, удалить, если есть.
+Запускаем etcd-сервис на добавляемой ноде.
+Контролируем статус ноды в кластере что вместо: `unstarted` стало: `started`;
+Если всё хорошо: задаём автозапуск etcd-службы: `systemctl enable etcd.service`
+
+Затем, таким же образом, добавляем третью ноду.
+```
+ETCD_INITIAL_CLUSTER_STATE="existing"
+ETCD_INITIAL_CLUSTER="postgresql3=http://192.168.0.12:2380,postgresql2=http://192.168.0.11:2380,postgresql1=http://192.168.0.10:2380"
+```
+И так далее, сколько нужно нод.
+В моём случае - три.
+
+```
+ENDPOINTS=$(export ETCDCTL_API=3; etcdctl member list | grep -o "[^ ]\+:2379" | paste -s -d ",")
+export ETCDCTL_API=3; etcdctl endpoint status --endpoints=$ENDPOINTS -w table
+export ETCDCTL_API=3; etcdctl endpoint health --endpoints=$ENDPOINTS -w table
++--------------------------+------------------+---------+---------+-----------+-----------+------------+
+|         ENDPOINT         |        ID        | VERSION | DB SIZE | IS LEADER | RAFT TERM | RAFT INDEX |
++--------------------------+------------------+---------+---------+-----------+-----------+------------+
+| http://192.168.0.10:2379 | 7a0fb1a3031d4c79 |  3.3.25 |   20 kB |      true |       136 |         12 |
+| http://192.168.0.11:2379 | 863e81c7efce4cd9 |  3.3.25 |   16 kB |     false |       136 |         12 |
+| http://192.168.0.12:2379 | fcad0adfab6c7da4 |  3.3.25 |   20 kB |     false |       136 |         12 |
++--------------------------+------------------+---------+---------+-----------+-----------+------------+
++--------------------------+--------+-------------+-------+
+|         ENDPOINT         | HEALTH |    TOOK     | ERROR |
++--------------------------+--------+-------------+-------+
+| http://192.168.0.11:2379 |   true | 11.054524ms |       |
+| http://192.168.0.10:2379 |   true | 10.907459ms |       |
+| http://192.168.0.12:2379 |   true | 26.894254ms |       |
++--------------------------+--------+-------------+-------+
+```
+
+После добавления всех нод в кластер:  привести конфигурацию нод к одному состоянию: всем нодам задать одинаковый список в `ETCD_INITIAL_CLUSTER` 
+И выставить значение `ETCD_INITIAL_CLUSTER_STATE="existing"`
+
+Если необходимо сменить лидера, выполнить, на текущем лидере:
+```shell
+export ETCDCTL_API=2; etcdctl member list
+7a0fb1a3031d4c79: name=postgresql1 peerURLs=http://192.168.0.10:2380 clientURLs=http://192.168.0.10:2379 isLeader=false
+863e81c7efce4cd9: name=postgresql2 peerURLs=http://192.168.0.11:2380 clientURLs=http://192.168.0.11:2379 isLeader=true
+fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=http://192.168.0.12:2379 isLeader=false
+export ETCDCTL_API=3; etcdctl --user=root:qaz move-leader 7a0fb1a3031d4c79
+Leadership transferred from 863e81c7efce4cd9 to 7a0fb1a3031d4c79
+root@postgresql2:/home/student# export ETCDCTL_API=2; etcdctl member list
+7a0fb1a3031d4c79: name=postgresql1 peerURLs=http://192.168.0.10:2380 clientURLs=http://192.168.0.10:2379 isLeader=true
+863e81c7efce4cd9: name=postgresql2 peerURLs=http://192.168.0.11:2380 clientURLs=http://192.168.0.11:2379 isLeader=false
+fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=http://192.168.0.12:2379 isLeader=false
+```
+
+###### Включаем авторизованный доступ в etcd, пример работы с ключами
+
+[Authentication Guide](https://etcd.io/docs/v3.5/op-guide/authentication/)
+[Interaction guide](https://etcd.io/docs/v3.5/dev-guide/interacting_v3/)
+
+```
+export ETCDCTL_API=3
+etcdctl user add root
+# type password, whet it will ask about it
+
+etcdctl --user=root:qaz  auth enable
+etcdctl --user=root:qaz user get root --detail=true
+etcdctl --user=root:qaz role list
+# shows role "guest"
+
+#etcdctl --user=root:qaz role delete role1
+etcdctl --user=root:qaz role add role1
+etcdctl --user=root:qaz role grant-permission --prefix=true role1 readwrite /keys1
+etcdctl --user=root:qaz role get role1
+#Role: role1
+#KV Read:
+#        /keys1/*
+#KV Write:
+#        /keys1/*
+
+#etcdctl --user=root:qaz user del user1
+etcdctl --user=root:qaz user add user1:qqq1
+etcdctl --user=root:qaz user grant-role user1 role1
+etcdctl --user=root:qaz user get user1 --detail=true
+
+etcdctl --user=user1:qqq1 put /keys1/key1 value1
+#OK
+etcdctl --user=user1:qqq1 get /keys1/key1
+#/keys1/key1
+#value1
+```
+
+
+
+# Сборка патрони-менеджмент кластера.
+#https://its.1c.ru/db/metod8dev/content/5971/hdoc
+#https://timeweb.cloud/blog/kak-ispolzovat-systemctl-dlya-upravleniya-sluzhbami-systemd
