@@ -229,7 +229,7 @@ ETCD_INITIAL_CLUSTER="postgresql3=http://192.168.0.12:2380,postgresql2=http://19
 И так далее, сколько нужно нод.
 В моём случае - три.
 
-```
+```shell
 ENDPOINTS=$(export ETCDCTL_API=3; etcdctl member list | grep -o "[^ ]\+:2379" | paste -s -d ",")
 export ETCDCTL_API=3; etcdctl endpoint status --endpoints=$ENDPOINTS -w table
 export ETCDCTL_API=3; etcdctl endpoint health --endpoints=$ENDPOINTS -w table
@@ -258,7 +258,7 @@ export ETCDCTL_API=2; etcdctl member list
 7a0fb1a3031d4c79: name=postgresql1 peerURLs=http://192.168.0.10:2380 clientURLs=http://192.168.0.10:2379 isLeader=false
 863e81c7efce4cd9: name=postgresql2 peerURLs=http://192.168.0.11:2380 clientURLs=http://192.168.0.11:2379 isLeader=true
 fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=http://192.168.0.12:2379 isLeader=false
-export ETCDCTL_API=3; etcdctl --user=root:qaz move-leader 7a0fb1a3031d4c79
+export ETCDCTL_API=3; etcdctl --user=root:qqq1 move-leader 7a0fb1a3031d4c79
 Leadership transferred from 863e81c7efce4cd9 to 7a0fb1a3031d4c79
 root@postgresql2:/home/student# export ETCDCTL_API=2; etcdctl member list
 7a0fb1a3031d4c79: name=postgresql1 peerURLs=http://192.168.0.10:2380 clientURLs=http://192.168.0.10:2379 isLeader=true
@@ -271,30 +271,30 @@ fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=
 [Authentication Guide](https://etcd.io/docs/v3.5/op-guide/authentication/)
 [Interaction guide](https://etcd.io/docs/v3.5/dev-guide/interacting_v3/)
 
-```
+```shell
 export ETCDCTL_API=3
 etcdctl user add root
 # type password, whet it will ask about it
 
-etcdctl --user=root:qaz  auth enable
-etcdctl --user=root:qaz user get root --detail=true
-etcdctl --user=root:qaz role list
+etcdctl --user=root:qqq1  auth enable
+etcdctl --user=root:qqq1 user get root --detail=true
+etcdctl --user=root:qqq1 role list
 # shows role "guest"
 
-#etcdctl --user=root:qaz role delete role1
-etcdctl --user=root:qaz role add role1
-etcdctl --user=root:qaz role grant-permission --prefix=true role1 readwrite /keys1
-etcdctl --user=root:qaz role get role1
+#etcdctl --user=root:qqq1 role delete role1
+etcdctl --user=root:qqq1 role add role1
+etcdctl --user=root:qqq1 role grant-permission --prefix=true role1 readwrite /keys1
+etcdctl --user=root:qqq1 role get role1
 #Role: role1
 #KV Read:
 #        /keys1/*
 #KV Write:
 #        /keys1/*
 
-#etcdctl --user=root:qaz user del user1
-etcdctl --user=root:qaz user add user1:qqq1
-etcdctl --user=root:qaz user grant-role user1 role1
-etcdctl --user=root:qaz user get user1 --detail=true
+#etcdctl --user=root:qqq1 user del user1
+etcdctl --user=root:qqq1 user add user1:qqq1
+etcdctl --user=root:qqq1 user grant-role user1 role1
+etcdctl --user=root:qqq1 user get user1 --detail=true
 
 etcdctl --user=user1:qqq1 put /keys1/key1 value1
 #OK
