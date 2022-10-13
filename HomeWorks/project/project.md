@@ -269,6 +269,7 @@ fcad0adfab6c7da4: name=postgresql3 peerURLs=http://192.168.0.12:2380 clientURLs=
 ###### Включаем авторизованный доступ в etcd, пример работы с ключами
 
 [Authentication Guide](https://etcd.io/docs/v3.5/op-guide/authentication/)
+
 [Interaction guide](https://etcd.io/docs/v3.5/dev-guide/interacting_v3/)
 
 ```shell
