@@ -27,31 +27,43 @@ export v_sshoption="-4 -o ServerAliveCountMax=5 -o ServerAliveInterval=15 -o Str
 export v_logonuser="student"
 
 runit(){
+local v_justcopy="$1"
+local v_destfile="$2"
+
 if [ -z "$v_runuser" ]; then 
    v_runuser="$v_logonuser"
 fi
 
+if [ -z "$v_destfile" ]; then
+   v_destfile="$v_targetfile"
+fi
+
 for i in ${!v_hosts[@]}; do
     v_host=${v_hosts[$i]}
-	echo "Processing $v_host"
-    eval "scp "$v_scpoption" "$v_localfile" ${v_logonuser}@${v_host}:${v_targetfile}"
+    echo "Copying ${v_localfile}->${v_logonuser}@${v_host}:${v_destfile}"
+    eval "scp "$v_scpoption" "$v_localfile" ${v_logonuser}@${v_host}:${v_destfile}"
     v_rc="$?"
-	if [ "$v_rc" -eq "0" ]; then
+    if [ "$v_rc" -eq "0" ]; then
+       if [ ! -z "$v_justcopy" ]; then
+          echo "Just copy, successfully copyed"
+          continue
+       fi
        if [ "$v_logonuser" != "$v_runuser" ]; then
-          v_cmd="chmod a+x ${v_targetfile}; sudo -u ${v_runuser} ${v_targetfile}"
+          v_cmd="chmod a+x ${v_destfile}; sudo -u ${v_runuser} ${v_destfile}"
        else
-          v_cmd="chmod u+x ${v_targetfile}; ${v_targetfile}"
+          v_cmd="chmod u+x ${v_destfile}; ${v_destfile}"
        fi
        #run_remote_ssh "$v_host" "$v_cmd" "ECHO"
-	   ssh ${v_sshoption} ${v_logonuser}@${v_host} "$v_cmd"
-	else
-	   echo "Can not copy ${v_localfile} to ${v_logonuser}@${v_host}:${v_targetfile}"
-	fi
+       ssh ${v_sshoption} ${v_logonuser}@${v_host} "$v_cmd"
+    else
+       echo "Can not copy ${v_localfile} to ${v_logonuser}@${v_host}:${v_destfile}"
+    fi
 done
 }
 
 
-v_hosts=( 158.160.11.130 158.160.5.159 158.160.15.7 )
+
+v_hosts=( 84.201.142.121 51.250.98.148 51.250.20.11 )
 export v_localfile="/tmp/script.sh"
 export v_targetfile="/tmp/script.sh"
 export v_runuser="root"
@@ -76,7 +88,7 @@ wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-
 apt-get update
 apt-get install postgresql -y
 pg_lsclusters
-pg_dropcluster --stop 14 main
+pg_dropcluster --stop 15 main
 __EOF__
 runit
 
@@ -231,8 +243,8 @@ ETCD_INITIAL_CLUSTER="postgresql3=http://192.168.0.12:2380,postgresql2=http://19
 
 ```shell
 ENDPOINTS=$(export ETCDCTL_API=3; etcdctl member list | grep -o "[^ ]\+:2379" | paste -s -d ",")
-export ETCDCTL_API=3; etcdctl endpoint status --endpoints=$ENDPOINTS -w table
-export ETCDCTL_API=3; etcdctl endpoint health --endpoints=$ENDPOINTS -w table
+export ETCDCTL_API=3; etcdctl --user=root:qaz endpoint status --endpoints=$ENDPOINTS -w table
+export ETCDCTL_API=3; etcdctl --user=root:qaz endpoint health --endpoints=$ENDPOINTS -w table
 +--------------------------+------------------+---------+---------+-----------+-----------+------------+
 |         ENDPOINT         |        ID        | VERSION | DB SIZE | IS LEADER | RAFT TERM | RAFT INDEX |
 +--------------------------+------------------+---------+---------+-----------+-----------+------------+
@@ -302,10 +314,189 @@ etcdctl --user=user1:qqq1 put /keys1/key1 value1
 etcdctl --user=user1:qqq1 get /keys1/key1
 #/keys1/key1
 #value1
+
+etcdctl --user=root:qaz del --prefix /service/
+etcdctl --user=root:qaz get --prefix /service/
 ```
-
-
 
 # Сборка патрони-менеджмент кластера.
 #https://its.1c.ru/db/metod8dev/content/5971/hdoc
 #https://timeweb.cloud/blog/kak-ispolzovat-systemctl-dlya-upravleniya-sluzhbami-systemd
+
+# check python version and OS-user postgres: if they are, which version, the same OS goups, goup-id
+cat << __EOF__ > "$v_localfile"
+python3 --version
+id postgres
+__EOF__
+runit
+
+cat << __EOF__ > "$v_localfile"
+apt install -y python3-pip python3-dev gcc
+python3 -m pip install psycopg2-binary
+python3 -m pip install patroni[etcd]
+patroni --version
+__EOF__
+runit
+
+cat << __EOF__ > "$v_localfile"
+[ ! -d "/etc/patroni" ] && mkdir /etc/patroni
+chown postgres:postgres /etc/patroni
+chmod 700 /etc/patroni
+ls -lthr /etc | grep "patroni"
+if [ ! -d "/var/lib/postgresql" ]; then
+   mkdir /var/lib/postgresql
+   chown -R postgres:postgres /var/lib/postgresql
+   chmod 750 /var/lib/postgresql
+else
+   ls -lthr /var/lib/ | grep "postgres"
+fi
+__EOF__
+runit
+
+[Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
+#/var/lib/postgresql/post_init.sh
+# put the following code into file "$v_localfile"
+```shell
+#!/bin/bash
+v_roster="$HOME/.pgtab"
+v_count="$#"
+v_index="0"
+v_str=""
+v_cmd=""
+
+##############################################
+if [ -f "$v_roster" ]; then
+   echo "SCOPE,NODENAME,DATA_DIR,LISTEN,BIN_DIR,PGPASS" > "$v_roster"
+fi
+
+v_count=$((v_count-1))
+if [ "$v_count" -gt "0" ]; then
+   while [ "$v_index" -lt "$v_count" ]; do
+         #echo "(${v_index}/${v_count}) $1"
+         if [ -z "$v_str" ]; then
+            v_str="$1"
+         else
+            v_str="${v_str},$1"
+         fi
+         shift
+         v_index=$((v_index+1))
+   done
+   v_cmd="cat \"$v_roster\" | egrep -m 1 -q \"^$v_str\$\""
+#   echo "$v_cmd"
+#   cat "$v_roster" | egrep -m 1 -q -- "$v_str"
+   eval "$v_cmd"
+   [ "$?" -ne "0" ] && echo "$v_str" >> "$v_roster"
+fi
+__EOF__
+```
+runit "y" "/tmp/post_init.sh"
+cat << __EOF__ > "$v_localfile"
+mv -v /tmp/post_init /var/lib/postgresql/post_init.sh
+chown postgres:postgres /var/lib/postgresql/post_init.sh
+cmdof u+x /var/lib/postgresql/post_init.sh
+ls -lt /var/lib/postgresql/post_init.sh
+__EOF__
+runit
+
+# /etc/patroni/patroni.yml
+cat << __EOF__ > "$v_localfile"
+name: postgresql1
+namespace: /service/
+scope: postgres
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: 192.168.0.10:8008
+  authentication:
+    username: patroni
+    password: qaz
+etcd3:
+  host: 192.168.0.10:2379
+  username: root
+  password: qaz
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    master_start_timeout: 300
+  postgresql:
+    use_pg_rewind: true
+    use_slots: true
+    parameters:
+      wal_level: replica
+      hot_standby: "on"
+      wal_keep_segments: 8
+      max_wal_senders: 5
+      max_replication_slots: 5
+      checkpoint_timeout: 300
+  initdb:
+  - auth-host: md5
+  - auth-local: peer
+  - encoding: UTF8
+  - data-checksums
+  - locale: en_US.utf8
+  pg_hba:
+  - host replication replicator 192.168.0.10/24 md5
+  - host replication all 127.0.0.1/32 md5
+  - host replication all ::1/128 md5
+  # please pass to post_init-script values of scope name data_dir listen bin_dir pgpass, as arguments
+  # see HOME/.pgtab
+  post_init: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "/etc/patroni/.pgpass"
+#  users:
+#    usr1cv8:
+#    password: usr1cv8
+#      options:
+#      - superuser
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: 192.168.0.10:5432
+  #config_dir: /var/lib/postgresql/15/main
+  bin_dir: /usr/lib/postgresql/15/bin
+  data_dir: /var/lib/postgresql/15/main
+  pgpass: /etc/patroni/.pgpass
+  authentication:
+    superuser:
+      username: postgres
+      password: qaz1
+    replication:
+      username: replicator
+      password: qaz2
+    rewind:
+      username: rewind_user
+      password: qaz3
+  parameters:
+    unix_socket_directories: '/var/run/postgresql/'
+    logging_collector: 'on'
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false
+__EOF__
+runit "y" "/tmp/patroni.yml"
+
+cat << __EOF__ > "$v_localfile"
+mv -v /tmp/patroni.yml /etc/patroni/patroni.yml
+chown postgres:postgres /etc/patroni/patroni.yml
+ls -lt /etc/patroni/patroni.yml
+__EOF__
+runit
+
+sudo postgres
+/usr/local/bin/patroni --validate-config /etc/patroni/patroni.yml; echo "$?"
+/usr/local/bin/patroni /etc/patroni/patroni.yml > /tmp/patroni_member_1.log 2>&1 &
+kill -s HUP $MAINPID # == patronictl reload
+kill -s INT $MAINPID # остановка патрони-демона + инстанса пг. по kill -9 - не сможет оттрапить и сделать остановку бд
+
+patronictl -c /etc/patroni/patroni.yml list
+
+postgres    7519  0.0  1.4 218972 29660 ?        S    19:42   0:00 /usr/lib/postgresql/15/bin/postgres -D /var/lib/postgresql/15/main --config-file=/var/lib/postgresql/15/main/postgresql.conf --listen_addresses=0.0.0.0 --port=5432 --cluster_name=postgres --wal_level=replica --hot_standby=on --max_connections=100 --max_wal_senders=10 --max_prepared_transactions=0 --max_locks_per_transaction=64 --track_commit_timestamp=off --max_replication_slots=10 --max_worker_processes=8 --wal_log_hints=on
+pg_ctl status -D /var/lib/postgresql/15/main -m i
+pg_ctl stop -D /var/lib/postgresql/15/main -m i
+
+###### Как удалить патрини-менеджмент кластер пг-баз
+
+echo -ne "postgres\nYes I am aware\n" | patronictl -c /etc/patroni/patroni.yml remove postgres
++ удалить датадир.
+
