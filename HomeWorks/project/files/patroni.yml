@@ -38,9 +38,10 @@ bootstrap:
   - host replication replicator 192.168.0.10/24 md5
   - host replication all 127.0.0.1/32 md5
   - host replication all ::1/128 md5
-  # please pass to post_init-script values of scope name data_dir listen bin_dir pgpass, as arguments
+  # please pass to post_init-script values of scope name data_dir listen bin_dir postgres-pwd, as arguments
   # see HOME/.pgtab
-  post_init: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "/etc/patroni/.pgpass"
+  post_init: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
+  post_bootstrap: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
 #  users:
 #    usr1cv8:
 #    password: usr1cv8

@@ -9,7 +9,6 @@ export PGHOST=""
 export PGPORT=""
 export PGUSER=""
 export PGCONF=""
-export PGPASSFILE=""
 
 export BIN_DIR=""
 export HBAFILE=""
@@ -51,8 +50,8 @@ BIN_DIR=$( echo -n "$v_str" | cut -f 5 -d "," )
 export BIN_DIR="$BIN_DIR"
 export PATH=$PATH:$BIN_DIR
 
-PGPASSFILE=$( echo -n "$v_str" | cut -f 6 -d "," )
-export PGPASSFILE="$PGPASSFILE"
+PGPASSWORD=$( echo -n "$v_str" | cut -f 6 -d "," )
+export PGPASSWORD="$PGPASSWORD"
 
 pg_isready -h $PGHOST -p $PGPORT -t 5 -q
 v_rc="$?"
@@ -107,7 +106,7 @@ PGHOST "$PGHOST"
 PGPORT "$PGPORT"
 PGUSER "$PGUSER"
 PGCONF "$PGCONF"
-PGPASSFILE "$PGPASSFILE"
+
 HBAFILE "$HBAFILE"
 PGDATA "$PGDATA"
 CLUSTER "$CLUSTER"
@@ -138,7 +137,7 @@ fi
 if [ "$#" -ne "2" ]; then
    echo "Usage: set_pgcluster <scope> <nodename>"
    echo "There is the following information abount inited patroni-management pg-clusters here"
-   cat "$v_roster" | column -t -s ","
+   cat "$v_roster" | awk -F "," '{printf "%s%s%s%s%s%s%s\n", $1, FS, $2, FS, $3, FS, $4; }' | column -t -s ","
    return 1
 fi
 

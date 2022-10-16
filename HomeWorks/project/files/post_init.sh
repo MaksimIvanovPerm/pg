@@ -7,7 +7,7 @@ v_cmd=""
 
 ##############################################
 if [ -f "$v_roster" ]; then
-   echo "SCOPE,NODENAME,DATA_DIR,LISTEN,BIN_DIR,PGPASS" > "$v_roster"
+   echo "SCOPE,NODENAME,DATA_DIR,LISTEN,BIN_DIR,PWD" > "$v_roster"
 fi
 
 v_count=$((v_count-1))

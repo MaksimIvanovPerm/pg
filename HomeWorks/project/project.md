@@ -398,11 +398,11 @@ cp -v ./pg/pg-main/HomeWorks/project/files/patroni.yml "\$v_dir"
 chown postgres:postgres "\$v_file"
 chmod 644 "\$v_file"
 v_hostname=\$(hostname -s)
-v_ip=\$( ifconfig eth0 | grep "inet " | awk '{printf "%s", $2;}' )
-sed -i -r "s/^name: .*/name: \$v_hostname/" "/etc/patroni/patroni.yml"; egrep "^name: " /etc/patroni/patroni.yml
+v_ip=\$( ifconfig eth0 | grep "inet " | awk '{printf "%s", \$2;}' )
+#sed -i -r "s/^name: .*/name: \$v_hostname/" "/etc/patroni/patroni.yml"; egrep "^name: " /etc/patroni/patroni.yml
 sed -i -r "s/postgresql1/\$v_hostname/g" "/etc/patroni/patroni.yml"
-sed -i -r "s/connect_address: .*/connect_address: \${v_ip}:8080/g" /etc/patroni/patroni.yml; egrep "connect_address: " /etc/patroni/patroni.yml
-
+sed -i -r "s/192.168.0.10/\$v_ip/g" "/etc/patroni/patroni.yml"
+#sed -i -r "s/connect_address: .*/connect_address: \${v_ip}:8080/g" /etc/patroni/patroni.yml; egrep "connect_address: " /etc/patroni/patroni.yml
 
 __EOF__
 runit
