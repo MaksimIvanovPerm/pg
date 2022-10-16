@@ -324,6 +324,7 @@ etcdctl --user=root:qaz get --prefix /service/
 #https://timeweb.cloud/blog/kak-ispolzovat-systemctl-dlya-upravleniya-sluzhbami-systemd
 
 # check python version and OS-user postgres: if they are, which version, the same OS goups, goup-id
+```shell
 cat << __EOF__ > "$v_localfile"
 python3 --version
 id postgres
@@ -352,55 +353,22 @@ else
 fi
 __EOF__
 runit
-
-[Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
-#/var/lib/postgresql/post_init.sh
-# put the following code into file "$v_localfile"
-```shell
-#!/bin/bash
-v_roster="$HOME/.pgtab"
-v_count="$#"
-v_index="0"
-v_str=""
-v_cmd=""
-
-##############################################
-if [ -f "$v_roster" ]; then
-   echo "SCOPE,NODENAME,DATA_DIR,LISTEN,BIN_DIR,PGPASS" > "$v_roster"
-fi
-
-v_count=$((v_count-1))
-if [ "$v_count" -gt "0" ]; then
-   while [ "$v_index" -lt "$v_count" ]; do
-         #echo "(${v_index}/${v_count}) $1"
-         if [ -z "$v_str" ]; then
-            v_str="$1"
-         else
-            v_str="${v_str},$1"
-         fi
-         shift
-         v_index=$((v_index+1))
-   done
-   v_cmd="cat \"$v_roster\" | egrep -m 1 -q \"^$v_str\$\""
-#   echo "$v_cmd"
-#   cat "$v_roster" | egrep -m 1 -q -- "$v_str"
-   eval "$v_cmd"
-   [ "$?" -ne "0" ] && echo "$v_str" >> "$v_roster"
-fi
-__EOF__
 ```
 
+Подготовить и выложить на сервер шелл-скрипт `post_init.sh` как `/var/lib/postgresql/post_init.sh`
+Образ скрипта: [post_init.sh](/HomeWorks/project/files/post_init.sh)
 ```shell
-runit "y" "/tmp/post_init.sh"
 cat << __EOF__ > "$v_localfile"
-mv -v /tmp/post_init /var/lib/postgresql/post_init.sh
+cd
+[ -d "./pg" ] && rm -rf ./pg; wget -O 1.zip https://github.com/MaksimIvanovPerm/pg/archive/refs/heads/main.zip; unzip -q 1.zip -d ./pg; rm -f ./1.zip
+cp -v ./pg/pg-main/HomeWorks/project/files/post_init.sh /var/lib/postgresql/post_init.sh
 chown postgres:postgres /var/lib/postgresql/post_init.sh
-cmdof u+x /var/lib/postgresql/post_init.sh
-ls -lt /var/lib/postgresql/post_init.sh
+chmod u+x /var/lib/postgresql/post_init.sh
 __EOF__
 runit
 ```
 
+[Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
 ```
 # /etc/patroni/patroni.yml
 cat << __EOF__ > "$v_localfile"
@@ -504,4 +472,8 @@ pg_ctl stop -D /var/lib/postgresql/15/main -m i
 
 echo -ne "postgres\nYes I am aware\n" | patronictl -c /etc/patroni/patroni.yml remove postgres
 + удалить датадир.
+
+[ -d "./pg" ] && rm -rf ./pg
+wget -O 1.zip https://github.com/MaksimIvanovPerm/pg/archive/refs/heads/main.zip
+unzip -q 1.zip -d ./pg
 
