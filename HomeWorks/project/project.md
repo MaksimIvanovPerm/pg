@@ -75,7 +75,7 @@ apt autoremove -y
 systemctl enable etcd
 systemctl status etcd
 
-adduser --system --quiet --home /var/lib/postgresql --no-create-home --shell /bin/bash --group --gecos "PostgreSQL administrator" postgres
+adduser --system --quiet --home /var/lib/postgresql --shell /bin/bash --group --gecos "PostgreSQL administrator" postgres
 usermod -u 5113 postgres
 groupmod -g 5119 postgres
 id postgres
@@ -355,8 +355,7 @@ __EOF__
 runit
 ```
 
-Подготовить и выложить на сервер шелл-скрипт `post_init.sh` как `/var/lib/postgresql/post_init.sh`
-Образ скрипта: [post_init.sh](/HomeWorks/project/files/post_init.sh)
+Выложить на сервер файлы.
 ```shell
 cat << __EOF__ > "$v_localfile"
 cd
@@ -364,116 +363,74 @@ cd
 cp -v ./pg/pg-main/HomeWorks/project/files/post_init.sh /var/lib/postgresql/post_init.sh
 chown postgres:postgres /var/lib/postgresql/post_init.sh
 chmod u+x /var/lib/postgresql/post_init.sh
+v_dir=$( getent passwd "postgres" | cut -f 6 -d ":" )
+v_file="${v_dir}/.pgtab"
+if [ ! -f "$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/.pgtab "$v_dir"
+   chown postgres:postgres "$v_file"
+   chmod 664 "$v_file"
+fi
+
+v_file="${v_dir}/.vimrc"
+if [ ! -f "$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/.vimrc "$v_dir"
+   chown postgres:postgres "$v_file"
+   chmod 664 "$v_file"
+fi
+
+v_file="${v_dir}/.bashrc"
+if [ ! -f "$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/.bashrc "$v_dir"
+   chown postgres:postgres "$v_file"
+   chmod 664 "$v_file"
+fi
+
+v_dir="/etc/patroni"
+v_file="${v_dir}/patroni.yml"
+if [ ! -f "$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/patroni.yml "$v_dir"
+   chown postgres:postgres "$v_file"
+   chmod 644 "$v_file"
+fi
 __EOF__
 runit
 ```
 
-[Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
-```
-# /etc/patroni/patroni.yml
-cat << __EOF__ > "$v_localfile"
-name: postgresql1
-namespace: /service/
-scope: postgres
-restapi:
-  listen: 0.0.0.0:8008
-  connect_address: 192.168.0.10:8008
-  authentication:
-    username: patroni
-    password: qaz
-etcd3:
-  host: 192.168.0.10:2379
-  username: root
-  password: qaz
-bootstrap:
-  dcs:
-    ttl: 30
-    loop_wait: 10
-    retry_timeout: 10
-    maximum_lag_on_failover: 1048576
-    master_start_timeout: 300
-  postgresql:
-    use_pg_rewind: true
-    use_slots: true
-    parameters:
-      wal_level: replica
-      hot_standby: "on"
-      wal_keep_segments: 8
-      max_wal_senders: 5
-      max_replication_slots: 5
-      checkpoint_timeout: 300
-  initdb:
-  - auth-host: md5
-  - auth-local: peer
-  - encoding: UTF8
-  - data-checksums
-  - locale: en_US.utf8
-  pg_hba:
-  - host replication replicator 192.168.0.10/24 md5
-  - host replication all 127.0.0.1/32 md5
-  - host replication all ::1/128 md5
-  # please pass to post_init-script values of scope name data_dir listen bin_dir pgpass, as arguments
-  # see HOME/.pgtab
-  post_init: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "/etc/patroni/.pgpass"
-#  users:
-#    usr1cv8:
-#    password: usr1cv8
-#      options:
-#      - superuser
-postgresql:
-  listen: 0.0.0.0:5432
-  connect_address: 192.168.0.10:5432
-  #config_dir: /var/lib/postgresql/15/main
-  bin_dir: /usr/lib/postgresql/15/bin
-  data_dir: /var/lib/postgresql/15/main
-  pgpass: /etc/patroni/.pgpass
-  authentication:
-    superuser:
-      username: postgres
-      password: qaz1
-    replication:
-      username: replicator
-      password: qaz2
-    rewind:
-      username: rewind_user
-      password: qaz3
-  parameters:
-    unix_socket_directories: '/var/run/postgresql/'
-    logging_collector: 'on'
-tags:
-  nofailover: false
-  noloadbalance: false
-  clonefrom: false
-  nosync: false
-__EOF__
-runit "y" "/tmp/patroni.yml"
+1. Шелл-скрипт `post_init.sh` как `/var/lib/postgresql/post_init.sh`
+   Образ скрипта: [post_init.sh](/HomeWorks/project/files/post_init.sh)
+   Скрипт будет использоваться в `post_init` параметре патрони-конфига, и будет вести файл [$HOME/.pgtab](/HomeWorks/project/files/.pgtab), в домашней дир-рии ОС-аккаунта `postgres`;
+   В файле `$HOME/.pgtab` - будут сохраняться данные до заплоенной, ч/з патрони, пг-базе, на данной машине.
+   Соотв-но: файл `$HOME/.pgtab` будет использоваться для инициализации env-а, для более комфортной работы с данной бд из CLI;
+   Инициализация env-а - по шелл-функции `set_pgcluster` в [.bashrc](/HomeWorks/project/files/.bashrc)
+2. Скрипт [patroni.yml](/HomeWorks/project/files/patroni.yml) выкладывается как `/etc/patroni/patroni.yml`
+   [Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
 
-cat << __EOF__ > "$v_localfile"
-mv -v /tmp/patroni.yml /etc/patroni/patroni.yml
-chown postgres:postgres /etc/patroni/patroni.yml
-ls -lt /etc/patroni/patroni.yml
-__EOF__
-runit
-```
-
+Запуск патрони-демона
+```shell
 sudo postgres
 /usr/local/bin/patroni --validate-config /etc/patroni/patroni.yml; echo "$?"
 /usr/local/bin/patroni /etc/patroni/patroni.yml > /tmp/patroni_member_1.log 2>&1 &
 kill -s HUP $MAINPID # == patronictl reload
 kill -s INT $MAINPID # остановка патрони-демона + инстанса пг. по kill -9 - не сможет оттрапить и сделать остановку бд
+/usr/local/bin/patronictl -c /etc/patroni/patroni.yml list
+```
 
-patronictl -c /etc/patroni/patroni.yml list
-
+В процессах можно будет увидеть что то вроде такого:
+```
 postgres    7519  0.0  1.4 218972 29660 ?        S    19:42   0:00 /usr/lib/postgresql/15/bin/postgres -D /var/lib/postgresql/15/main --config-file=/var/lib/postgresql/15/main/postgresql.conf --listen_addresses=0.0.0.0 --port=5432 --cluster_name=postgres --wal_level=replica --hot_standby=on --max_connections=100 --max_wal_senders=10 --max_prepared_transactions=0 --max_locks_per_transaction=64 --track_commit_timestamp=off --max_replication_slots=10 --max_worker_processes=8 --wal_log_hints=on
+```
+
+Поспрашивать состояние пг-базы можно так, если напрямую и не занимаясь настройкой env-а под более комофртную работу с патрони-менеджмент бд:
+```shell
 pg_ctl status -D /var/lib/postgresql/15/main -m i
 pg_ctl stop -D /var/lib/postgresql/15/main -m i
+```
 
 ###### Как удалить патрини-менеджмент кластер пг-баз
-
+```shell
 echo -ne "postgres\nYes I am aware\n" | patronictl -c /etc/patroni/patroni.yml remove postgres
-+ удалить датадир.
+#+ удалить датадир.
+rm -rf $PGATA
+```
 
-[ -d "./pg" ] && rm -rf ./pg
-wget -O 1.zip https://github.com/MaksimIvanovPerm/pg/archive/refs/heads/main.zip
-unzip -q 1.zip -d ./pg
 
