@@ -1,6 +1,6 @@
 [Unit]
 Description=Runners to orchestrate a high-availability PostgreSQL
-After=syslog.target network.target
+After=syslog.target network.target etcd.service
 [Service]
 Type=simple
 User=postgres

@@ -362,17 +362,13 @@ cd
 [ -d "./pg" ] && rm -rf ./pg; wget -O 1.zip https://github.com/MaksimIvanovPerm/pg/archive/refs/heads/main.zip; unzip -q 1.zip -d ./pg; rm -f ./1.zip
 v_dir="/etc/systemd/system"
 v_file="\${v_dir}/patroni.service"
-if [ ! -f "\$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/patroni.service "\$v_dir"
-   chmod 644 "\$v_file"
-fi
+cp -v ./pg/pg-main/HomeWorks/project/files/patroni.service "\$v_dir"
+chmod 644 "\$v_file"
 
 v_dir=\$( getent passwd "postgres" | cut -f 6 -d ":" )
 v_file="\${v_dir}/post_init.sh"
-if [ ! -f "\$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/post_init.sh "\$v_dir"
-   chown postgres:postgres "\$v_file"; chmod u+x "\$v_file"
-fi
+cp -v ./pg/pg-main/HomeWorks/project/files/post_init.sh "\$v_dir"
+chown postgres:postgres "\$v_file"; chmod u+x "\$v_file"
 
 v_file="\${v_dir}/.pgtab"
 if [ ! -f "\$v_file" ]; then
@@ -387,10 +383,8 @@ if [ ! -f "\$v_file" ]; then
 fi
 
 v_file="\${v_dir}/.bashrc"
-if [ ! -f "\$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/.bashrc "\$v_dir"
-   chown postgres:postgres "\$v_file"; chmod 664 "\$v_file"
-fi
+cp -v ./pg/pg-main/HomeWorks/project/files/.bashrc "\$v_dir"
+chown postgres:postgres "\$v_file"; chmod 664 "\$v_file"
 
 v_dir="/etc/patroni"
 v_file="\${v_dir}/patroni.yml"
@@ -417,17 +411,25 @@ runit
 2. Скрипт [patroni.yml](/HomeWorks/project/files/patroni.yml) выкладывается как `/etc/patroni/patroni.yml`
    [Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
 3. Скрипт [patroni.service](/HomeWorks/project/files/patroni.service) - для оформления патриони-демона как системного сервиса.
+   Выкладывается в `/etc/systemd/system/patroni.service`
    Свойство Restart - может принимать значения: no, on-success, on-failure, on-abnormal, on-watchdog, on-abort, или always. 
    Определяет политику перезапуска сервиса в случае, если он завершает работу не по команде от systemd.
    Решил не рестартить патрони-сервис вообще, если он, сам умер, или его убили по kill-команде, не пользуясь systemd-службой.
 
+Замечания по пар-рам патрони, в его конфиге.
+1. Пар-р `pgpass` - это оказывается файл который патрони ведёт именно сам и именно под свои нужды.
+   Ведёт обозначает что - буквально: ведёт, сам добавляет/удаляет записи при бутстрапе ноды.
+   Если файл уже был и в нём были записи - всё перетрёт своими записями.
+2. Пар-ры `post_init, post_bootstrap`; `post_init` - отрабатывает как часы, после каждого инита.
+   `post_bootstrap` - не работает.
 
 Запуск/остановка патрони-демона, если ч/з systemd-оснастку:
 ```shell
 # sudo systemctl daemon-reload после добавления unit-скрипта.
-sudo systemctl start patroni.service
-sudo systemctl status patroni.service
-sudo systemctl stop patroni.service
+systemctl start patroni.service
+systemctl status patroni.service
+systemctl enable patroni.service
+systemctl stop patroni.service
 ```
 ```
 root@postgresql1:~# sudo systemctl daemon-reload
@@ -493,5 +495,7 @@ echo -ne "postgres\nYes I am aware\n" | patronictl -c /etc/patroni/patroni.yml r
 #+ удалить датадир.
 rm -rf $PGATA
 ```
+
+###### Добавление ноды в патрони-кластер.
 
 
