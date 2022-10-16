@@ -70,7 +70,7 @@ export v_runuser="root"
 
 cat << __EOF__ > "$v_localfile"
 apt update; apt upgrade -y
-apt install net-tools etcd -y
+apt install net-tools etcd unzip zip -y
 apt autoremove -y
 systemctl enable etcd
 systemctl status etcd
@@ -389,6 +389,8 @@ if [ "$v_count" -gt "0" ]; then
 fi
 __EOF__
 ```
+
+```shell
 runit "y" "/tmp/post_init.sh"
 cat << __EOF__ > "$v_localfile"
 mv -v /tmp/post_init /var/lib/postgresql/post_init.sh
@@ -397,7 +399,9 @@ cmdof u+x /var/lib/postgresql/post_init.sh
 ls -lt /var/lib/postgresql/post_init.sh
 __EOF__
 runit
+```
 
+```
 # /etc/patroni/patroni.yml
 cat << __EOF__ > "$v_localfile"
 name: postgresql1
@@ -482,6 +486,7 @@ chown postgres:postgres /etc/patroni/patroni.yml
 ls -lt /etc/patroni/patroni.yml
 __EOF__
 runit
+```
 
 sudo postgres
 /usr/local/bin/patroni --validate-config /etc/patroni/patroni.yml; echo "$?"
