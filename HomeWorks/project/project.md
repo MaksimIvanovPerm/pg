@@ -63,7 +63,7 @@ done
 
 
 
-v_hosts=( 84.201.142.121 51.250.98.148 51.250.20.11 )
+v_hosts=( 130.193.52.202 158.160.11.58 158.160.14.248 )
 export v_localfile="/tmp/script.sh"
 export v_targetfile="/tmp/script.sh"
 export v_runuser="root"
@@ -106,7 +106,7 @@ export ETCD_CONF="${HOME}/etcd.yml"
 export ETCD_LOG="${HOME}/etcd_logfile"
 export ETCDCTL_API=3
 
-v_hosts=( "192.168.0.12" "192.168.0.11" "192.168.0.10" )
+v_hosts=( 130.193.52.202 158.160.11.58 158.160.14.248 )
 v_names=( "postgresql3" "postgresql2" "postgresql1" )
 v_lclip=$( ifconfig eth0 | egrep -o "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | cut -f 2 -d " " )
 
@@ -360,38 +360,50 @@ runit
 cat << __EOF__ > "$v_localfile"
 cd
 [ -d "./pg" ] && rm -rf ./pg; wget -O 1.zip https://github.com/MaksimIvanovPerm/pg/archive/refs/heads/main.zip; unzip -q 1.zip -d ./pg; rm -f ./1.zip
-cp -v ./pg/pg-main/HomeWorks/project/files/post_init.sh /var/lib/postgresql/post_init.sh
-chown postgres:postgres /var/lib/postgresql/post_init.sh
-chmod u+x /var/lib/postgresql/post_init.sh
-v_dir=$( getent passwd "postgres" | cut -f 6 -d ":" )
-v_file="${v_dir}/.pgtab"
-if [ ! -f "$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/.pgtab "$v_dir"
-   chown postgres:postgres "$v_file"
-   chmod 664 "$v_file"
+v_dir="/etc/systemd/system"
+v_file="\${v_dir}/patroni.service"
+if [ ! -f "\$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/patroni.service "\$v_dir"
+   chmod 644 "\$v_file"
 fi
 
-v_file="${v_dir}/.vimrc"
-if [ ! -f "$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/.vimrc "$v_dir"
-   chown postgres:postgres "$v_file"
-   chmod 664 "$v_file"
+v_dir=\$( getent passwd "postgres" | cut -f 6 -d ":" )
+v_file="\${v_dir}/post_init.sh"
+if [ ! -f "\$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/post_init.sh "\$v_dir"
+   chown postgres:postgres "\$v_file"; chmod u+x "\$v_file"
 fi
 
-v_file="${v_dir}/.bashrc"
-if [ ! -f "$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/.bashrc "$v_dir"
-   chown postgres:postgres "$v_file"
-   chmod 664 "$v_file"
+v_file="\${v_dir}/.pgtab"
+if [ ! -f "\$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/.pgtab "\$v_dir"
+   chown postgres:postgres "\$v_file"; chmod 664 "\$v_file"
+fi
+
+v_file="\${v_dir}/.vimrc"
+if [ ! -f "\$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/.vimrc "\$v_dir"
+   chown postgres:postgres "\$v_file"; chmod 664 "\$v_file"
+fi
+
+v_file="\${v_dir}/.bashrc"
+if [ ! -f "\$v_file" ]; then
+   cp -v ./pg/pg-main/HomeWorks/project/files/.bashrc "\$v_dir"
+   chown postgres:postgres "\$v_file"; chmod 664 "\$v_file"
 fi
 
 v_dir="/etc/patroni"
-v_file="${v_dir}/patroni.yml"
-if [ ! -f "$v_file" ]; then
-   cp -v ./pg/pg-main/HomeWorks/project/files/patroni.yml "$v_dir"
-   chown postgres:postgres "$v_file"
-   chmod 644 "$v_file"
-fi
+v_file="\${v_dir}/patroni.yml"
+cp -v ./pg/pg-main/HomeWorks/project/files/patroni.yml "\$v_dir"
+chown postgres:postgres "\$v_file"
+chmod 644 "\$v_file"
+v_hostname=\$(hostname -s)
+v_ip=\$( ifconfig eth0 | grep "inet " | awk '{printf "%s", $2;}' )
+sed -i -r "s/^name: .*/name: \$v_hostname/" "/etc/patroni/patroni.yml"; egrep "^name: " /etc/patroni/patroni.yml
+sed -i -r "s/postgresql1/\$v_hostname/g" "/etc/patroni/patroni.yml"
+sed -i -r "s/connect_address: .*/connect_address: \${v_ip}:8080/g" /etc/patroni/patroni.yml; egrep "connect_address: " /etc/patroni/patroni.yml
+
+
 __EOF__
 runit
 ```
@@ -404,8 +416,55 @@ runit
    Инициализация env-а - по шелл-функции `set_pgcluster` в [.bashrc](/HomeWorks/project/files/.bashrc)
 2. Скрипт [patroni.yml](/HomeWorks/project/files/patroni.yml) выкладывается как `/etc/patroni/patroni.yml`
    [Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
+3. Скрипт [patroni.service](/HomeWorks/project/files/patroni.service) - для оформления патриони-демона как системного сервиса.
+   Свойство Restart - может принимать значения: no, on-success, on-failure, on-abnormal, on-watchdog, on-abort, или always. 
+   Определяет политику перезапуска сервиса в случае, если он завершает работу не по команде от systemd.
+   Решил не рестартить патрони-сервис вообще, если он, сам умер, или его убили по kill-команде, не пользуясь systemd-службой.
 
-Запуск патрони-демона
+
+Запуск/остановка патрони-демона, если ч/з systemd-оснастку:
+```shell
+# sudo systemctl daemon-reload после добавления unit-скрипта.
+sudo systemctl start patroni.service
+sudo systemctl status patroni.service
+sudo systemctl stop patroni.service
+```
+```
+root@postgresql1:~# sudo systemctl daemon-reload
+root@postgresql1:~# sudo systemctl start patroni.service
+root@postgresql1:~# sudo systemctl status patroni.service
+● patroni.service - Runners to orchestrate a high-availability PostgreSQL
+     Loaded: loaded (/etc/systemd/system/patroni.service; disabled; vendor preset: enabled)
+     Active: active (running) since Sun 2022-10-16 12:42:54 UTC; 6s ago
+   Main PID: 2563 (patroni)
+      Tasks: 14 (limit: 2236)
+     Memory: 66.6M
+        CPU: 502ms
+     CGroup: /system.slice/patroni.service
+             ├─2563 /usr/bin/python3 /usr/local/bin/patroni /etc/patroni/patroni.yml
+             ├─2575 /usr/lib/postgresql/15/bin/postgres -D /var/lib/postgresql/15/main --config-file=/var/lib/postgresql/15/main/p>
+             ├─2577 "postgres: postgres: logger " "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "">
+             ├─2578 "postgres: postgres: checkpointer " "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "">
+             ├─2579 "postgres: postgres: background writer " "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" >
+             ├─2585 "postgres: postgres: postgres postgres 127.0.0.1(47116) idle" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" >
+             ├─2590 "postgres: postgres: walwriter " "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "">
+             ├─2591 "postgres: postgres: autovacuum launcher " "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ">
+             └─2592 "postgres: postgres: logical replication launcher " "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ">
+
+Oct 16 12:42:56 postgresql1 patroni[2581]: localhost:5432 - accepting connections
+Oct 16 12:42:56 postgresql1 patroni[2583]: localhost:5432 - accepting connections
+Oct 16 12:42:56 postgresql1 patroni[2563]: 2022-10-16 12:42:56,174 INFO: establishing a new patroni connection to the postgres clu>
+Oct 16 12:42:56 postgresql1 patroni[2563]: 2022-10-16 12:42:56,229 WARNING: Could not activate Linux watchdog device: "Can't open >
+Oct 16 12:42:56 postgresql1 patroni[2563]: 2022-10-16 12:42:56,280 INFO: promoted self to leader by acquiring session lock
+Oct 16 12:42:56 postgresql1 patroni[2588]: server promoting
+Oct 16 12:42:56 postgresql1 patroni[2563]: 2022-10-16 12:42:56,283 INFO: cleared rewind state after becoming the leader
+Oct 16 12:42:56 postgresql1 patroni[2563]: 2022-10-16 12:42:56,281 INFO: Lock owner: postgresql1; I am postgresql1
+Oct 16 12:42:56 postgresql1 patroni[2563]: 2022-10-16 12:42:56,431 INFO: updated leader lock during promote
+Oct 16 12:42:57 postgresql1 patroni[2563]: 2022-10-16 12:42:57,433 INFO: no action. I am (postgresql1), the leader with the lock
+```
+
+Смотреть лог работы сервиса: `journalctl -u patroni -f`
+Запуск/остановка патрони-сервиса, если всё вручную:
 ```shell
 sudo postgres
 /usr/local/bin/patroni --validate-config /etc/patroni/patroni.yml; echo "$?"
@@ -414,6 +473,8 @@ kill -s HUP $MAINPID # == patronictl reload
 kill -s INT $MAINPID # остановка патрони-демона + инстанса пг. по kill -9 - не сможет оттрапить и сделать остановку бд
 /usr/local/bin/patronictl -c /etc/patroni/patroni.yml list
 ```
+
+
 
 В процессах можно будет увидеть что то вроде такого:
 ```

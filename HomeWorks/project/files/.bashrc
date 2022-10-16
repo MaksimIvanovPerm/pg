@@ -150,4 +150,5 @@ show_pgenv
 export -f set_pgcluster
 ### main
 cd
+export PATRONI_CONF="/etc/patroni/patroni.yml"
 set_pgcluster
