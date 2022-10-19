@@ -85,8 +85,7 @@ runit
 cat << __EOF__ > "$v_localfile"
 sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-apt-get update
-apt-get install postgresql -y
+apt-get update; apt-get install postgresql -y
 pg_lsclusters
 pg_dropcluster --stop 15 main
 __EOF__
@@ -388,7 +387,7 @@ chown postgres:postgres "\$v_file"; chmod 664 "\$v_file"
 
 v_file="\${v_dir}/callback.sh"
 cp -v ./pg/pg-main/HomeWorks/project/files/callback.sh "\$v_dir"
-chown postgres:postgres "\$v_file"; chmod 744 "\$v_file"
+chown postgres:postgres "\$v_file"; chmod u+x "\$v_file"
 
 v_dir="/etc/patroni"
 v_file="\${v_dir}/patroni.yml"
@@ -401,7 +400,6 @@ v_ip=\$( ifconfig eth0 | grep "inet " | awk '{printf "%s", \$2;}' )
 sed -i -r "s/postgresql1/\$v_hostname/g" "/etc/patroni/patroni.yml"
 sed -i -r "s/192.168.0.10/\$v_ip/g" "/etc/patroni/patroni.yml"
 #sed -i -r "s/connect_address: .*/connect_address: \${v_ip}:8080/g" /etc/patroni/patroni.yml; egrep "connect_address: " /etc/patroni/patroni.yml
-
 __EOF__
 runit
 ```
@@ -518,3 +516,72 @@ IFNAME="eth0"
 PREFIX="24"
 ip address add $VIP/$PREFIX dev $IFNAME
 ip address del $VIP/$PREFIX dev $IFNAME
+
+С перемещаемым ip - не выгорело. YC не позволяет такого.
+Поэтому: haproxy
+
+Подготовка сервера:
+```shell
+cd
+apt update; apt upgrade -y
+apt install net-tools unzip zip lynx -y
+apt autoremove -y
+adduser --system --quiet --home /var/lib/postgresql --shell /bin/bash --group --gecos "PostgreSQL administrator" postgres
+ls -lthr /var/lib/postgresql
+usermod -u 5113 postgres
+groupmod -g 5119 postgres
+id postgres
+sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+apt-get update; apt-get install postgresql -y
+pg_lsclusters
+pg_dropcluster --stop 15 main
+
+apt install haproxy -y
+haproxy -v
+mv /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.conf.def
+
+cat << __EOF__ > /etc/haproxy/haproxy.cfg
+global
+ maxconn 100
+defaults
+ log global
+ mode tcp
+ retries 2
+ timeout client 30m
+ timeout connect 4s
+ timeout server 30m
+ timeout check 5s
+listen stats
+ mode http
+ bind *:7000
+ stats enable
+ stats uri /
+ stats hide-version
+ stats auth hap:poi1
+listen postgres
+ bind *:5432
+ option httpchk
+ http-check expect status 200
+ default-server inter 3s fastinter 1s fall 2 rise 2 on-marked-down shutdown-sessions
+ server postgresql1 192.168.0.10:5432 maxconn 100 check port 8008
+ server postgresql2 192.168.0.11:5432 maxconn 100 check port 8008
+ server postgresql3 192.168.0.10:5432 maxconn 100 check port 8008
+__EOF__
+vim /etc/haproxy/haproxy.cfg
+systemctl stop haproxy.service; systemctl start haproxy.service; 
+# systemctl enable haproxy.service
+systemctl status haproxy.service
+
+lynx http://192.168.0.13:7000
+```
+
+export PGPASSWORD="qqq"
+psql -h localhost -p 5432 -U postgres << __EOF__
+\conninfo
+select inet_server_addr();
+\q
+__EOF__
+
+![4](/HomeWorks/project/4.png)
+![5](/HomeWorks/project/5.png)

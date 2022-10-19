@@ -36,6 +36,7 @@ bootstrap:
   - locale: en_US.utf8
   pg_hba:
   - host replication replicator 192.168.0.10/24 md5
+  - host all         postgres   192.168.0.10/24 md5
   - host replication all 127.0.0.1/32 md5
   - host replication all ::1/128 md5
   # please pass to post_init-script values of scope name data_dir listen bin_dir postgres-pwd, as arguments
