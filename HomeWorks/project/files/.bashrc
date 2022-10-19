@@ -129,7 +129,7 @@ if [ ! -f "$v_roster" ]; then
 fi
 
 v_count=$( cat "$v_roster" | wc -l )
-if [ "$v_count" -eq "0" ]; then
+if [ "$v_count" -eq "1" ]; then
    echo "File ${v_roster} does not conain any data"
    echo "Try to obtain infortation from patronictl list output;
 And/or restart pg on this node, because callback routines should to uppdate and/or insert information in ${v_roster}
