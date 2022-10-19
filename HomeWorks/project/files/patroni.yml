@@ -40,8 +40,8 @@ bootstrap:
   - host replication all ::1/128 md5
   # please pass to post_init-script values of scope name data_dir listen bin_dir postgres-pwd, as arguments
   # see HOME/.pgtab
-  post_init: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
-  post_bootstrap: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
+  #post_init: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
+  #post_bootstrap: /var/lib/postgresql/post_init.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
 #  users:
 #    usr1cv8:
 #    password: usr1cv8
@@ -67,6 +67,12 @@ postgresql:
   parameters:
     unix_socket_directories: '/var/run/postgresql/'
     logging_collector: 'on'
+  callbacks:
+    # please pass to post_init-script values of scope name data_dir listen bin_dir postgres-pwd, as arguments
+    on_start: /var/lib/postgresql/callback.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
+    #on_restart: /var/lib/postgresql/callback.sh "qqq"
+    on_stop: /var/lib/postgresql/callback.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
+    on_role_change: /var/lib/postgresql/callback.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
 tags:
   nofailover: false
   noloadbalance: false

@@ -63,7 +63,7 @@ done
 
 
 
-v_hosts=( 130.193.52.202 158.160.11.58 158.160.14.248 )
+v_hosts=( 158.160.14.201 158.160.16.89 84.201.165.197 )
 export v_localfile="/tmp/script.sh"
 export v_targetfile="/tmp/script.sh"
 export v_runuser="root"
@@ -398,6 +398,11 @@ sed -i -r "s/postgresql1/\$v_hostname/g" "/etc/patroni/patroni.yml"
 sed -i -r "s/192.168.0.10/\$v_ip/g" "/etc/patroni/patroni.yml"
 #sed -i -r "s/connect_address: .*/connect_address: \${v_ip}:8080/g" /etc/patroni/patroni.yml; egrep "connect_address: " /etc/patroni/patroni.yml
 
+v_dir="/var/lib/postgresql"
+v_file="\${v_dir}/callback.sh"
+cp -v ./pg/pg-main/HomeWorks/project/files/callback.sh "\$v_dir"
+chown postgres:postgres "$v_file"; chmod 744 "$v_file"
+
 __EOF__
 runit
 ```
@@ -499,3 +504,18 @@ rm -rf $PGATA
 ###### Добавление ноды в патрони-кластер.
 
 
+###### Полезности
+
+https://github.com/IlgizMamyshev/dnscp/blob/main/dnscp.sh
+https://imamyshev.wordpress.com/2022/05/29/dns-connection-point-for-patroni/
+
+https://patroni.readthedocs.io/en/latest/ENVIRONMENT.html 
+PATRONICTL_CONFIG_FILE
+
+https://www.ibm.com/docs/en/cabi/1.1.5?topic=cluster-migrating-stand-alone-postgresql-instance-node
+
+VIP="192.168.0.13"
+IFNAME="eth0"
+PREFIX="24"
+ip address add $VIP/$PREFIX dev $IFNAME
+ip address del $VIP/$PREFIX dev $IFNAME
