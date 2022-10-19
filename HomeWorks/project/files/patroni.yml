@@ -68,7 +68,6 @@ postgresql:
     unix_socket_directories: '/var/run/postgresql/'
     logging_collector: 'on'
   callbacks:
-    # please pass to post_init-script values of scope name data_dir listen bin_dir postgres-pwd, as arguments
     on_start: /var/lib/postgresql/callback.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
     on_restart: /var/lib/postgresql/callback.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
     on_stop: /var/lib/postgresql/callback.sh "postgres" "postgresql1" "/var/lib/postgresql/15/main" "0.0.0.0:5432" "/usr/lib/postgresql/15/bin" "qaz1"
