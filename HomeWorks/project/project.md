@@ -63,7 +63,7 @@ done
 
 
 
-v_hosts=( 158.160.14.201 158.160.16.89 84.201.165.197 )
+v_hosts=( 158.160.9.61 158.160.10.91 158.160.9.129 )
 export v_localfile="/tmp/script.sh"
 export v_targetfile="/tmp/script.sh"
 export v_runuser="root"
@@ -524,7 +524,7 @@ ip address del $VIP/$PREFIX dev $IFNAME
 ```shell
 cd
 apt update; apt upgrade -y
-apt install net-tools unzip zip lynx -y
+apt install net-tools unzip zip lynx hatop -y
 apt autoremove -y
 adduser --system --quiet --home /var/lib/postgresql --shell /bin/bash --group --gecos "PostgreSQL administrator" postgres
 ls -lthr /var/lib/postgresql
@@ -544,6 +544,7 @@ mv /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.conf.def
 cat << __EOF__ > /etc/haproxy/haproxy.cfg
 global
  maxconn 100
+ stats socket /var/run/haproxy.stat mode 660 group haproxy expose-fd listeners
 defaults
  log global
  mode tcp
@@ -566,12 +567,14 @@ listen postgres
  default-server inter 3s fastinter 1s fall 2 rise 2 on-marked-down shutdown-sessions
  server postgresql1 192.168.0.10:5432 maxconn 100 check port 8008
  server postgresql2 192.168.0.11:5432 maxconn 100 check port 8008
- server postgresql3 192.168.0.10:5432 maxconn 100 check port 8008
+ server postgresql3 192.168.0.12:5432 maxconn 100 check port 8008
 __EOF__
 vim /etc/haproxy/haproxy.cfg
 systemctl stop haproxy.service; systemctl start haproxy.service; 
 # systemctl enable haproxy.service
 systemctl status haproxy.service
+
+usermod -a -G haproxy postgres
 
 lynx http://192.168.0.13:7000
 ```

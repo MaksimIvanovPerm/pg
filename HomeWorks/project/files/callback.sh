@@ -38,7 +38,7 @@ readonly v_supwd="$6"
 readonly v_cbname="$7"
 readonly v_role="$8"
 readonly v_scope2="$9"
-readonly v_line="${v_scope2},${v_nodename},${v_datadir},${v_pglisten},${v_bindir},${v_supwd},${v_role}"
+readonly v_line="${v_scope2},${v_nodename},${v_datadir},${v_pglisten},${v_bindir},${v_supwd}"
 
 case "$v_cbname" in
      "on_stop")
