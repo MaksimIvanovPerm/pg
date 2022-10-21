@@ -586,5 +586,5 @@ select inet_server_addr();
 \q
 __EOF__
 
-![4](/HomeWorks/project/4.png)
+![8](/HomeWorks/project/8.png)
 ![5](/HomeWorks/project/5.png)
