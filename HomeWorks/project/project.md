@@ -613,11 +613,13 @@ postgres@postgresql1:~$
 Потому как - мастер-пг может быть большой бд, нагруженной бд и вот её ещё грузить отдачей всего её образа на сторону новой реплики.
 Можно переопределить этот процесс, если есть какой то вариант получить реплику не нагружая мастера, например - уже есть актуальные бэкапы мастера.
 Или если реплика - уже есть, в виде вручную подготовленного standby;
+
 Статьи на это есть, с примерами, как именно это делается, например [Patroni and pgBackRest combined](https://pgstef.github.io/2022/07/12/patroni_and_pgbackrest_combined.html).
-Патрони для кастомизации процесса лепления реплики позволяет определить свои методы в пар-ре `postgresql.create_replica_methods` своего yml-файла.
+Суть в том что патрони, для кастомизации процесса лепления реплики, позволяет определить свои методы в пар-ре `postgresql.create_replica_methods` своего yml-файла.
 Подрбнее тут: [Building replicas](https://patroni.readthedocs.io/en/latest/replica_bootstrap.html#building-replicas)
 Так же можно переопределить бутстрапинг, это параметр `bootstrap.method`;
 [Хорошая статья](https://community.pivotal.io/s/article/How-to-Use-pgbackrest-to-bootstrap-or-add-replica-to-HA-Patroni?language=en_US) поясняющая разницу между кастомным мтодом бутстрапинга и кстомным методом лепления реплики.
+
 Два слова по методам в `postgresql.create_replica_methods`
 Патрони тут тоже продуман и, для дефолтного метода получения реплик, можно кастомизировать опции вызова `pg_basebackup`:
 ```
