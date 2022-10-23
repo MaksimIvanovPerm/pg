@@ -319,10 +319,10 @@ etcdctl --user=root:qaz get --prefix /service/
 ```
 
 # Сборка патрони-менеджмент кластера.
-#https://its.1c.ru/db/metod8dev/content/5971/hdoc
-#https://timeweb.cloud/blog/kak-ispolzovat-systemctl-dlya-upravleniya-sluzhbami-systemd
+[Программная, очень подробная, статья от 1С](https://its.1c.ru/db/metod8dev/content/5971/hdoc)
+[Про systemd-оснастку](https://timeweb.cloud/blog/kak-ispolzovat-systemctl-dlya-upravleniya-sluzhbami-systemd)
 
-# check python version and OS-user postgres: if they are, which version, the same OS goups, goup-id
+Установка необходимого ПО:
 ```shell
 cat << __EOF__ > "$v_localfile"
 python3 --version
@@ -410,6 +410,11 @@ runit
    В файле `$HOME/.pgtab` - будут сохраняться данные до заплоенной, ч/з патрони, пг-базе, на данной машине.
    Соотв-но: файл `$HOME/.pgtab` будет использоваться для инициализации env-а, для более комфортной работы с данной бд из CLI;
    Инициализация env-а - по шелл-функции `set_pgcluster` в [.bashrc](/HomeWorks/project/files/.bashrc)
+   P.S.: поправка: поздже понял что это всё - бред, не правильное понимание назначения пар-ра `post_init`;
+   То, о чём я, в этом пункте пишу: делается с помощью callback-секции в yaml-конфиге патрони.
+   См. файлы:
+   [callback.sh](/HomeWorks/project/files/callback.sh)
+   [patroni.yml](/HomeWorks/project/files/patroni.yml)
 2. Скрипт [patroni.yml](/HomeWorks/project/files/patroni.yml) выкладывается как `/etc/patroni/patroni.yml`
    [Дока по пар-рам yaml-конфига](https://patroni.readthedocs.io/en/latest/SETTINGS.html)
 3. Скрипт [patroni.service](/HomeWorks/project/files/patroni.service) - для оформления патриони-демона как системного сервиса.
@@ -424,6 +429,10 @@ runit
    Если файл уже был и в нём были записи - всё перетрёт своими записями.
 2. Пар-ры `post_init, post_bootstrap`; `post_init` - отрабатывает как часы, после каждого инита.
    `post_bootstrap` - не работает.
+   P.S.: опять же - со временем понял что: и не должно работать так как я ожидал, в то время когда набирал эти строки.
+   Эти параметры: срабатывают во время первой инициализации мастер-бд, во время создания патрони-менеджмент кластера.
+   И нужны если это создание - надо переопределить на что то своё, например - патрони-менеджмент кластер поднимается как тестовый кластер, от уже существующей продовой мастер-бд и из её бэкапов.
+   А то что я хотел тут, когда, впервые, набирал этот пункт, делается вызовами которые определяются в секции `callback` yml-файла патрони.
 
 Запуск/остановка патрони-демона, если ч/з systemd-оснастку:
 ```shell
@@ -478,8 +487,6 @@ kill -s INT $MAINPID # остановка патрони-демона + инст
 /usr/local/bin/patronictl -c /etc/patroni/patroni.yml list
 ```
 
-
-
 В процессах можно будет увидеть что то вроде такого:
 ```
 postgres    7519  0.0  1.4 218972 29660 ?        S    19:42   0:00 /usr/lib/postgresql/15/bin/postgres -D /var/lib/postgresql/15/main --config-file=/var/lib/postgresql/15/main/postgresql.conf --listen_addresses=0.0.0.0 --port=5432 --cluster_name=postgres --wal_level=replica --hot_standby=on --max_connections=100 --max_wal_senders=10 --max_prepared_transactions=0 --max_locks_per_transaction=64 --track_commit_timestamp=off --max_replication_slots=10 --max_worker_processes=8 --wal_log_hints=on
@@ -499,8 +506,9 @@ rm -rf $PGATA
 ```
 
 ###### Добавление ноды в патрони-кластер.
-Ровно таким же образом: готовится yml-файл с конфигурацией, именно для этой ноды.
-Файл выкладывается на ноду.
+Ровно таким же образом: готовится такой же yml-файл с конфигурацией, именно для этой ноды.
+Т.е., проще всего - взять yaml-конфиг c ноды и с кластера которая - уже в патрони-менеджменте, откопировать его на вновь добавляему ноду и там поправить, под местные реалии.
+yml-файл выкладывается на ноду.
 Возможно - прописывается systemctl-юнит.
 Делается запуск патрони-сервиса, на новой ноде.
 При этом патрони автоматически выполняет бутстрап пг-кластера, на данной ноде, используя утилиту `pg_basebackup` для снятия образа с текущего мастера.
@@ -592,9 +600,10 @@ Success: restart on member node1
 postgres@postgresql1:~$
 ```
 
-Лепление второй и более ноды, с репликой.
-Смысл в том чтобы, при добавлении ноды в уже существующий патрони-кластер, в котором уже есть мастер-пг, избежать дефолтного процесса создания реплики, на вновь добавляемую ноду.
-По дефолту ам патрони делает реплику с помощью `pg_basebackup` с мастера, что, конечно, не здорово, в общем случае.
+Продолжая пример: добавим теперь, к этой ноде с лидером, ноду с репликой.
+И пусть, на вновь добавляемой ноде-реплике, мы не хотим получать реплику от лидера дефолтным образом.
+Т.е., по умолчанию, патрони будет, с пом-ю `pg_basebackup`, подкючаться, со стороны новой ноды к ноде с лидером и тянуть с неё образ бд на вновь добавляему ноду.
+Что, конечно, не здорово, в общем случае.
 Потому как - мастер-пг может быть большой бд, нагруженной бд и вот её ещё грузить отдачей всего её образа на сторону новой реплики.
 Можно переопределить этот процесс, если есть какой то вариант получить реплику не нагружая мастера, например - уже есть актуальные бэкапы мастера.
 Или если реплика - уже есть, в виде вручную подготовленного standby;
@@ -632,35 +641,188 @@ postgresql:
 
 У меня не особо много времени изучать специализированные средства бэкапирования постгреса.
 Поэтому я сэмулирую, использование специализирванного средства, в своём шелл-скрипта, который я впишу в `bootstrap.method`, в виде использования, в нём, всё того же `pg_basebackup`
+Пример секции `postgresql.create_replica_methods` в моём случае (см. файл: [standalonedb.yml](/HomeWorks/project/files/standalonedb.yml)):
+```
+  create_replica_methods:
+    - pgbackrest
+    - basebackup
+  pgbackrest:
+    command: /var/lib/postgresql/create_replica.sh --scope --datadir --connstring
+    keep_data: True
+    #no_params: True
+  basebackup:
+    checkpoint: 'fast'
+    verbose:
+    progress:
+    compress: 'server-gzip:1'
+```
 
+Патрони обрабатывает методы лепления реплики сверху вниз, в списке который указан непосредственно узле `create_replica_methods`
+Если метод выдал нулевой статус завершения - считается что он отработал успешно и нижеследующие методы: не будут выполняться патрони.
+В противном случае: патрони будет пробовать выполнить следующий, по списку, метод.
+Этим обстоятельством можно воспользоваться для того чтобы выполнить какой то свой, кастомный скрипт.
+Который - ничего делать не будет с физ-компонентой бд-реплики (у нас она - уже есть, по легенде).
+См. скрипт: [standalonedb.yml](/HomeWorks/project/files/standalonedb.yml)
+
+```shell
 #Процедура получения бэкапа, на стороне вновь добавляемой ноды:
-#v_datadir="/var/lib/postgresql/15/standalondb"
-#[ ! -d "$v_datadir" ] && mkdir -p "$v_datadir"; chmod 700 "$v_datadir"
-#v_masterhost="192.168.0.10"
-#v_port="5433"
-#cd "$v_datadir"
-#find ./ -not -name . -delete 2>/dev/null 
-#cd ..
-#pg_basebackup -D "$v_datadir" -F p --wal-method=stream -c fast -l "backup1" -P -v -h "$v_masterhost" -p "$v_port" -U replicator
-
 v_backupdir="/mnt/sharedstorage/backup"
 [ -d "$v_backupdir" ] && rm -rf "$v_backupdir"; mkdir -p "$v_backupdir"
 pg_basebackup -D "$v_backupdir" -F t --wal-method=stream -c fast -l "backup1" -P -v 
-
+```
+```shell
+#Выкладка бэкапа на стороне новой реплики
+v_datadir="/var/lib/postgresql/15/standalondb"
+#[ ! -d "$v_datadir" ] && mkdir -p "$v_datadir"; chmod 700 "$v_datadir"
+cd "$v_datadir"
+find ./ -not -name . -delete 2>/dev/null 
 cp -v /mnt/sharedstorage/backup/* ./
 tar -xf ./base.tar; rm -f ./base.tar
 mv -v ./pg_wal.tar ./pg_wal; cd ./pg_wal; tar -xf ./pg_wal.tar; rm -f ./pg_wal.tar
-
+```
 
 Проконтролировать наличие `data_dir, bin_dir, config_dir` на стороне вновь создаваемой реплики.
-Проложить `postgresql.base.conf` на сторону реплики, как `postgresql.conf`
-Создать на стороне реплики подпапку `conf.d` для наварки `postgresql.base.conf`
+Проложить `postgresql.base.conf`, со стороны ноды с лидером, на сторону реплики, как `postgresql.conf` (в папку которая, в патрони-терминах: `config_dir`).
+Создать на стороне реплики, в `config_dir` ,подпапку `conf.d` для наварки `postgresql.base.conf`
 
+```shell
 find /etc/postgresql/15/standalondb/ -type f -name 'postgresql.*' -delete
 cp -v /etc/postgresql/15/standalondb/postgresql.base.conf /mnt/sharedstorage/
 mv -v /mnt/sharedstorage/postgresql.base.conf /etc/postgresql/15/standalondb/postgresql.conf
+```
 
-kill -s INT $MAINPID
+Т.о., на этот момент времени, на стороне добавляемой в кластер ноды: уже есть копия бд со стороны лидера.
+Она (копия) была выложена из бэкапов.
+Копия могла быть получена и как standby-база, ну, тогда опять же - это тоже копия.
+Пытаемся запустить, на стороне добавляемой реплики, патрони-демона:
+```shell
+/usr/local/bin/patroni --validate-config /etc/patroni/standalonedb.yml; echo "$?"
+/usr/local/bin/patroni /etc/patroni/standalonedb.yml > /tmp/patroni.log 2>&1 &
+kill -s HUP $MAINPID # == patronictl reload
+kill -s INT $MAINPID # остановка патрони-демона + инстанса пг. по kill -9 - не сможет оттрапить и сделать остановку бд
+```
+
+Как это всё выглядит.
+На стороне ноды с лидером:
+```shell
+postgres@postgresql1:~$ export PATRONICTL_CONFIG_FILE=/etc/patroni/standalonedb.yml
+postgres@postgresql1:~$ patronictl list
++--------+------+------+-------+----+-----------+
+| Member | Host | Role | State | TL | Lag in MB |
++ Cluster: standalondb (7157344067292274707) ---+
++--------+------+------+-------+----+-----------+
+postgres@postgresql1:~$ /usr/local/bin/patroni --validate-config /etc/patroni/standalonedb.yml; echo "$?"
+postgresql.listen 0.0.0.0:5433 didn't pass validation: 'Port 5433 is already in use.'
+0
+postgres@postgresql1:~$ /usr/local/bin/patroni /etc/patroni/standalonedb.yml > /tmp/patroni.log 2>&1 &
+[1] 1420
+postgres@postgresql1:~$ patronictl list
++--------+-------------------+--------+---------+----+-----------+
+| Member | Host              | Role   | State   | TL | Lag in MB |
++ Cluster: standalondb (7157344067292274707) ---+----+-----------+
+| node1  | 192.168.0.10:5433 | Leader | running |  4 |           |
++--------+-------------------+--------+---------+----+-----------+
+postgres@postgresql1:~$
+```
+
+На стороне вновь добавляемой, как реплики, ноды - выполняем процедуру получения физ-компоненты бд, с лидера, в дата-директорию.
+Изображая, таким образом, что - копия у нас уже, каким то образом, есть, на вновь добавляемой ноде.
+И выполняем:
+```shell
+postgres@postgresql2:~$ /usr/local/bin/patroni --validate-config /etc/patroni/standalonedb.yml; echo "$?"
+0
+postgres@postgresql2:~$ /usr/local/bin/patroni /etc/patroni/standalonedb.yml > /tmp/patroni.log 2>&1 &
+[1] 1588
+```
+В `/tmp/patroni.log` оно пишет:
+```
+2022-10-23 14:55:40,152 INFO: Trying to authenticate on Etcd...
+2022-10-23 14:55:40,289 INFO: No PostgreSQL configuration items changed, nothing to reload.
+2022-10-23 14:55:40,339 WARNING: Postgresql is not running.
+2022-10-23 14:55:40,339 INFO: Lock owner: node1; I am node2
+2022-10-23 14:55:40,340 INFO: pg_controldata:
+  pg_control version number: 1300
+  Catalog version number: 202209061
+  Database system identifier: 7157344067292274707
+  Database cluster state: in production
+  pg_control last modified: Sun Oct 23 14:54:35 2022
+  Latest checkpoint location: 0/19000060
+  Latest checkpoint's REDO location: 0/19000028
+...
+  Data page checksum version: 0
+  Mock authentication nonce: 6739653add17f62350a8daeec4a94ef853f59b8a11f9c989b5dd4c00d9910974
+
+2022-10-23 14:55:40,341 INFO: Lock owner: node1; I am node2
+2022-10-23 14:55:40,341 INFO: starting as a secondary
+2022-10-23 14:55:40,492 INFO: postmaster pid=1600
+localhost:5433 - no response
+2022-10-23 14:55:40.503 UTC [1600] LOG:  redirecting log output to logging collector process
+2022-10-23 14:55:40.503 UTC [1600] HINT:  Future log output will appear in directory "log".
+localhost:5433 - accepting connections
+localhost:5433 - accepting connections
+2022-10-23 14:55:41,546 INFO: Lock owner: node1; I am node2
+2022-10-23 14:55:41,547 INFO: establishing a new patroni connection to the postgres cluster
+2022-10-23 14:55:41,694 INFO: no action. I am (node2), a secondary, and following a leader (node1)
+```
+
+И можно спросить про состояние патрони-кластера:
+```shell
+postgres@postgresql2:~$ hostname -f; date
+postgresql2.ru-central1.internal
+Sun Oct 23 03:00:07 PM UTC 2022
+postgres@postgresql2:~$ export PATRONICTL_CONFIG_FILE=/etc/patroni/standalonedb.yml
+postgres@postgresql2:~$ patronictl topology
++---------+-------------------+---------+---------+----+-----------+
+| Member  | Host              | Role    | State   | TL | Lag in MB |
++ Cluster: standalondb (7157344067292274707) -----+----+-----------+
+| node1   | 192.168.0.10:5433 | Leader  | running |  4 |           |
+| + node2 | 192.168.0.11:5433 | Replica | running |  4 |         0 |
++---------+-------------------+---------+---------+----+-----------+
+```
+
+Из любопытства и чтобы показать как патрони перебирает, заданные ему, методы лепления реплики, вписал в `/var/lib/postgresql/create_replica.sh` - `exit 1`
+Остановил патрони-процесс, на стороне ноды-реплики `node2`, удалил её физ-компоненту пг-реплики, снова запустил патрони-процесс.
+Лог `/tmp/patroni.log`:
+```
+2022-10-23 16:40:08,212 INFO: Trying to authenticate on Etcd...
+2022-10-23 16:40:08,349 INFO: No PostgreSQL configuration items changed, nothing to reload.
+2022-10-23 16:40:08,398 INFO: Lock owner: node1; I am node2
+2022-10-23 16:40:08,446 INFO: trying to bootstrap from leader 'node1'
+2022-10-23 16:40:08,450 ERROR: Error creating replica using method pgbackrest: /var/lib/postgresql/create_replica.sh --scope --datadir --connstring exited with code=1
+2022-10-23 16:40:10,253 INFO: replica has been created using basebackup
+2022-10-23 16:40:10,254 INFO: bootstrapped from leader 'node1'
+2022-10-23 16:40:10,394 INFO: postmaster pid=5276
+localhost:5433 - no response
+2022-10-23 16:40:10.405 UTC [5276] LOG:  redirecting log output to logging collector process
+2022-10-23 16:40:10.405 UTC [5276] HINT:  Future log output will appear in directory "log".
+2022-10-23 16:40:10,815 INFO: Lock owner: node1; I am node2
+2022-10-23 16:40:10,862 INFO: bootstrap from leader 'node1' in progress
+localhost:5433 - accepting connections
+localhost:5433 - accepting connections
+2022-10-23 16:40:11,450 INFO: Lock owner: node1; I am node2
+2022-10-23 16:40:11,450 INFO: establishing a new patroni connection to the postgres cluster
+2022-10-23 16:40:11,514 INFO: no action. I am (node2), a secondary, and following a leader (node1)
+2022-10-23 16:40:21,495 INFO: no action. I am (node2), a secondary, and following a leader (node1)
+2022-10-23 16:40:31,449 INFO: no action. I am (node2), a secondary, and following a leader (node1)
+```
+Любопытно что в файле `/tmp/dump.txt`, куда скрипт фейкового рестора выписывает свои аргументы, видно такое:
+```
+Sun Oct 23 04:40:08 PM UTC 2022
+(0/8) --scope
+(1/8) --datadir
+(2/8) --connstring
+(3/8) --keep_data=True
+(4/8) --scope=standalondb
+(5/8) --role=replica
+(6/8) --datadir=/var/lib/postgresql/15/standalondb
+(7/8) --connstring=dbname=postgres user=replicator host=192.168.0.10 port=5433
+```
+Об этом говорится в [док-ции патрони](https://patroni.readthedocs.io/en/latest/replica_bootstrap.html#building-replicas): патрини, командам реализущим выполнение метода восстановления реплики - сливает, автоматом и сам, контекстную информацию про эту реплику, которую ему (патрони) задали в его конфигурации.
+
+[Забавная статья](https://pgconf.ru/media/2020/02/17/1Pavel_Konotopov_-_storage_of_regulated_data.pdf)
+В ней есть пример на прикручивание probackup-утилиты, для лепления реплики.
+И пример на переопределение бустрапа кластера, с помощью probackup-утилиты, с примером настроек рековера.
+Т.е., из этой статьи получается что: методов лепления реплик - может быть много.
 
 ###### Полезности
 
