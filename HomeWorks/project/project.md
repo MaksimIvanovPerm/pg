@@ -1026,7 +1026,7 @@ Oct 29 14:46:43 postgresql3 patroni[738]: 2022-10-29 14:46:43,870 INFO: no actio
 ![17](/HomeWorks/project/17.png)
 ![18](/HomeWorks/project/18.png)
 
-Запустим виртуалку `postgresql1` в YC, по логу патрони-сервиса, на `postgresql1` видно что патрони, автоматически, переделал пг-кластер, на этой машине, в реплику, от текущего лидера:
+После запуск виртуалки `postgresql1` в YC, по логу патрони-сервиса, на `postgresql1` видно что патрони, автоматически, переделал пг-кластер, на этой машине, в реплику, от текущего лидера:
 ```
 Oct 29 14:46:11 postgresql1 patroni[793]: 2022-10-29 14:46:11,585 INFO: no action. I am (postgresql1), the leader with the lock
 Oct 29 14:46:21 postgresql1 patroni[793]: 2022-10-29 14:46:21,585 INFO: no action. I am (postgresql1), the leader with the lock
