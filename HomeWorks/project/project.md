@@ -1023,7 +1023,7 @@ Oct 29 14:46:32 postgresql3 patroni[738]: 2022-10-29 14:46:32,725 INFO: cleared 
 Oct 29 14:46:33 postgresql3 patroni[738]: 2022-10-29 14:46:33,957 INFO: no action. I am (postgresql3), the leader with the lock
 Oct 29 14:46:43 postgresql3 patroni[738]: 2022-10-29 14:46:43,870 INFO: no action. I am (postgresql3), the leader with the lock
 ```
-На стороне клиента и что показывает хапрокси:
+Что на стороне клиента и что показывает хапрокси:
 ![17](/HomeWorks/project/17.png)
 ![18](/HomeWorks/project/18.png)
 
