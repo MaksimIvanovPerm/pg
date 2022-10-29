@@ -996,3 +996,118 @@ Oct 29 14:39:11 postgresql1 patroni[793]: 2022-10-29 14:39:11,679 INFO: no actio
 
 Что на стороне клиента:
 ![14](/HomeWorks/project/14.png)
+
+### Файлове в патрони:
+
+После свичовера, выше, лидером стал пг-кластер, на ноде `postgresql1`
+Грубо остановим эту вм, в YC:
+![15](/HomeWorks/project/15.png)
+
+Новым лидером стал пг-кластер на `postgresql3`:
+![16](/HomeWorks/project/16.png)
+записи в логе патрони-сервиса:
+```
+Oct 29 14:46:11 postgresql3 patroni[738]: 2022-10-29 14:46:11,655 INFO: no action. I am (postgresql3), a secondary, and following >
+Oct 29 14:46:21 postgresql3 patroni[738]: 2022-10-29 14:46:21,700 INFO: no action. I am (postgresql3), a secondary, and following >
+Oct 29 14:46:31 postgresql3 patroni[738]: 2022-10-29 14:46:31,654 INFO: Lock owner: postgresql1; I am postgresql3
+Oct 29 14:46:31 postgresql3 patroni[738]: 2022-10-29 14:46:31,699 ERROR: Invalid auth token: eThDupovgVksWAnx.2395
+Oct 29 14:46:31 postgresql3 patroni[738]: 2022-10-29 14:46:31,699 INFO: Trying to authenticate on Etcd...
+Oct 29 14:46:31 postgresql3 patroni[738]: 2022-10-29 14:46:31,823 ERROR: watchprefix failed: ProtocolError("Connection broken: Inv>
+Oct 29 14:46:31 postgresql3 patroni[738]: 2022-10-29 14:46:31,828 INFO: no action. I am (postgresql3), a secondary, and following >
+Oct 29 14:46:32 postgresql3 patroni[738]: 2022-10-29 14:46:32,538 INFO: Got response from postgresql2 http://192.168.0.11:8008/pat>
+Oct 29 14:46:32 postgresql3 patroni[738]: 2022-10-29 14:46:32,632 WARNING: Request failed to postgresql1: GET http://192.168.0.10:>
+Oct 29 14:46:32 postgresql3 patroni[738]: 2022-10-29 14:46:32,724 INFO: promoted self to leader by acquiring session lock
+Oct 29 14:46:32 postgresql3 patroni[1799]: server promoting
+Oct 29 14:46:32 postgresql3 patroni[738]: 2022-10-29 14:46:32,725 INFO: cleared rewind state after becoming the leader
+Oct 29 14:46:33 postgresql3 patroni[738]: 2022-10-29 14:46:33,957 INFO: no action. I am (postgresql3), the leader with the lock
+Oct 29 14:46:43 postgresql3 patroni[738]: 2022-10-29 14:46:43,870 INFO: no action. I am (postgresql3), the leader with the lock
+```
+На стороне клиента и что показывает хапрокси:
+![17](/HomeWorks/project/17.png)
+![18](/HomeWorks/project/18.png)
+
+Запустим виртуалку `postgresql1` в YC, по логу патрони-сервиса, на `postgresql1` видно что патрони, автоматически, переделал пг-кластер, на этой машине, в реплику, от текущего лидера:
+```
+Oct 29 14:46:11 postgresql1 patroni[793]: 2022-10-29 14:46:11,585 INFO: no action. I am (postgresql1), the leader with the lock
+Oct 29 14:46:21 postgresql1 patroni[793]: 2022-10-29 14:46:21,585 INFO: no action. I am (postgresql1), the leader with the lock
+Oct 29 14:46:30 postgresql1 systemd[1]: Stopping Runners to orchestrate a high-availability PostgreSQL...
+Oct 29 14:46:32 postgresql1 patroni[793]: 2022-10-29 14:46:32,392 ERROR: Invalid auth token: XhozbODIjZbfgGCa.2398
+Oct 29 14:46:32 postgresql1 patroni[793]: 2022-10-29 14:46:32,392 INFO: Trying to authenticate on Etcd...
+Oct 29 14:46:32 postgresql1 patroni[793]: 2022-10-29 14:46:32,507 ERROR: watchprefix failed: ProtocolError("Connection broken: Inv>
+Oct 29 14:46:32 postgresql1 systemd[1]: patroni.service: Deactivated successfully.
+Oct 29 14:46:32 postgresql1 systemd[1]: Stopped Runners to orchestrate a high-availability PostgreSQL.
+Oct 29 14:46:32 postgresql1 systemd[1]: patroni.service: Consumed 2.767s CPU time.
+-- Boot 9cb5f9b7690a4e519f9e0fef3e8870cb --
+Oct 29 14:56:04 postgresql1 systemd[1]: Started Runners to orchestrate a high-availability PostgreSQL.
+Oct 29 14:56:07 postgresql1 patroni[800]: 2022-10-29 14:56:07,546 INFO: Trying to authenticate on Etcd...
+Oct 29 14:56:07 postgresql1 patroni[800]: 2022-10-29 14:56:07,823 INFO: No PostgreSQL configuration items changed, nothing to relo>
+Oct 29 14:56:08 postgresql1 patroni[800]: 2022-10-29 14:56:08,050 WARNING: Postgresql is not running.
+Oct 29 14:56:08 postgresql1 patroni[800]: 2022-10-29 14:56:08,051 INFO: Lock owner: postgresql3; I am postgresql1
+Oct 29 14:56:08 postgresql1 patroni[800]: 2022-10-29 14:56:08,052 INFO: pg_controldata:
+Oct 29 14:56:08 postgresql1 patroni[800]:   pg_control version number: 1300
+Oct 29 14:56:08 postgresql1 patroni[800]:   Catalog version number: 202209061
+Oct 29 14:56:08 postgresql1 patroni[800]:   Database system identifier: 7154796699611842821
+Oct 29 14:56:08 postgresql1 patroni[800]:   Database cluster state: shut down
+Oct 29 14:56:08 postgresql1 patroni[800]:   pg_control last modified: Sat Oct 29 14:46:31 2022
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint location: 0/17844370
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's REDO location: 0/17844370
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's REDO WAL file: 000000200000000000000017
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's TimeLineID: 32
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's PrevTimeLineID: 32
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's full_page_writes: on
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's NextXID: 0:748
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's NextOID: 16393
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's NextMultiXactId: 1
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's NextMultiOffset: 0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's oldestXID: 717
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's oldestXID's DB: 1
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's oldestActiveXID: 0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's oldestMultiXid: 1
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's oldestMulti's DB: 1
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's oldestCommitTsXid: 0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Latest checkpoint's newestCommitTsXid: 0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Time of latest checkpoint: Sat Oct 29 14:46:31 2022
+Oct 29 14:56:08 postgresql1 patroni[800]:   Fake LSN counter for unlogged rels: 0/3E8
+Oct 29 14:56:08 postgresql1 patroni[800]:   Minimum recovery ending location: 0/0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Min recovery ending loc's timeline: 0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Backup start location: 0/0
+Oct 29 14:56:08 postgresql1 patroni[800]:   Backup end location: 0/0
+Oct 29 14:56:08 postgresql1 patroni[800]:   End-of-backup record required: no
+Oct 29 14:56:08 postgresql1 patroni[800]:   wal_level setting: replica
+Oct 29 14:56:08 postgresql1 patroni[800]:   wal_log_hints setting: on
+Oct 29 14:56:08 postgresql1 patroni[800]:   max_connections setting: 100
+Oct 29 14:56:08 postgresql1 patroni[800]:   max_worker_processes setting: 8
+Oct 29 14:56:08 postgresql1 patroni[800]:   max_wal_senders setting: 10
+Oct 29 14:56:08 postgresql1 patroni[800]:   max_prepared_xacts setting: 0
+Oct 29 14:56:08 postgresql1 patroni[800]:   max_locks_per_xact setting: 64
+Oct 29 14:56:08 postgresql1 patroni[800]:   track_commit_timestamp setting: off
+Oct 29 14:56:08 postgresql1 patroni[800]:   Maximum data alignment: 8
+Oct 29 14:56:08 postgresql1 patroni[800]:   Database block size: 8192
+Oct 29 14:56:08 postgresql1 patroni[800]:   Blocks per segment of large relation: 131072
+Oct 29 14:56:08 postgresql1 patroni[800]:   WAL block size: 8192
+Oct 29 14:56:08 postgresql1 patroni[800]:   Bytes per WAL segment: 16777216
+Oct 29 14:56:08 postgresql1 patroni[800]:   Maximum length of identifiers: 64
+Oct 29 14:56:08 postgresql1 patroni[800]:   Maximum columns in an index: 32
+Oct 29 14:56:08 postgresql1 patroni[800]:   Maximum size of a TOAST chunk: 1996
+Oct 29 14:56:08 postgresql1 patroni[800]:   Size of a large-object chunk: 2048
+Oct 29 14:56:08 postgresql1 patroni[800]:   Date/time type storage: 64-bit integers
+Oct 29 14:56:08 postgresql1 patroni[800]:   Float8 argument passing: by value
+Oct 29 14:56:08 postgresql1 patroni[800]:   Data page checksum version: 1
+Oct 29 14:56:08 postgresql1 patroni[800]:   Mock authentication nonce: fbe977cca9a36a39fc697a64e357173f6674aabc6970265fefc9a5ee647>
+Oct 29 14:56:08 postgresql1 patroni[800]: 2022-10-29 14:56:08,053 INFO: Lock owner: postgresql3; I am postgresql1
+Oct 29 14:56:08 postgresql1 patroni[800]: 2022-10-29 14:56:08,053 INFO: starting as a secondary
+Oct 29 14:56:08 postgresql1 patroni[800]: 2022-10-29 14:56:08,317 INFO: postmaster pid=875
+Oct 29 14:56:08 postgresql1 patroni[877]: localhost:5432 - no response
+Oct 29 14:56:08 postgresql1 patroni[875]: 2022-10-29 14:56:08.358 UTC [875] LOG:  redirecting log output to logging collector proc>
+Oct 29 14:56:08 postgresql1 patroni[875]: 2022-10-29 14:56:08.358 UTC [875] HINT:  Future log output will appear in directory "log>
+Oct 29 14:56:09 postgresql1 patroni[890]: localhost:5432 - accepting connections
+Oct 29 14:56:09 postgresql1 patroni[892]: localhost:5432 - accepting connections
+Oct 29 14:56:09 postgresql1 patroni[800]: 2022-10-29 14:56:09,455 INFO: Lock owner: postgresql3; I am postgresql1
+Oct 29 14:56:09 postgresql1 patroni[800]: 2022-10-29 14:56:09,455 INFO: establishing a new patroni connection to the postgres clus>
+Oct 29 14:56:10 postgresql1 patroni[800]: 2022-10-29 14:56:10,810 INFO: no action. I am (postgresql1), a secondary, and following >
+Oct 29 14:56:19 postgresql1 patroni[800]: 2022-10-29 14:56:19,545 INFO: no action. I am (postgresql1), a secondary, and following >
+```
+![19](/HomeWorks/project/19.png)
+
+Хапрокси: перестаёт показывать что нода `postgresql1` в аут-е:
+![20](/HomeWorks/project/20.png)
