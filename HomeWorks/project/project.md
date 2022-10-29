@@ -864,7 +864,7 @@ ip address del $VIP/$PREFIX dev $IFNAME
 Ну и, в callback-скрипте, глядя на эту роль - выдавать команду перемещения/подьёма vip-а, на данную ноду, где срабатывает данный callback-скрипт (если запускается пг-лидер), или не выдавать (если запускается пг-реплика).
 
 В рамках этой работы ограничусь только: haproxy, как средством, пусть и не отказоустойчивым, организации доступа в патрони-менеджмент пг-базу, клиентам, по одному ip/fqdn.
-Подготовка сервера:
+Подготовка отдельной ubuntu-вм c haproxy:
 ```shell
 cd
 apt update; apt upgrade -y
@@ -923,6 +923,12 @@ usermod -a -G haproxy postgres
 lynx http://192.168.0.13:7000
 ```
 
+Нашёл замечательную утилитку: `hatop`
+Позволяет из командной строки получать, ч/з локальный сокет (см. `stats socket` в конфиге выше), опрашивать информацию о хапрокси и выдавать ему какие то команды управления.
+Запуск hatop-утилиты и подключение, ч/з `haproxy`, к пг-кластеру в патрини:
+```shell
+hatop -s /var/run/haproxy.stat -i 2
+```
 ```shell
 export PGPASSWORD="qqq"
 psql -h localhost -p 5432 -U postgres << __EOF__
@@ -934,3 +940,59 @@ __EOF__
 ![8](/HomeWorks/project/8.png)
 ![5](/HomeWorks/project/5.png)
 
+Ну и, титульные процедуры, по патрони-поддержке пг-кластера.
+
+### Свичовер в патрони:
+
+Фиксируем текущее состояние патрони-кластера, в терминах хапрокси (в верхнем правом углу скриншота: время):
+![10](/HomeWorks/project/10.png)
+
+Подключаемся, с хапроски-вм, к пг-базе, спрашиваем - куда подключились и что нибудь делаем в пг-бд:
+![11](/HomeWorks/project/11.png)
+
+Выполняем свичовер:
+```shell
+patronictl switchover --master postgresql3 --candidate postgresql1 --scheduled now --force
+```
+![13](/HomeWorks/project/13.png)
+
+В логе патрони, на стороне `postgresql3` ноды:
+```
+Oct 29 14:38:52 postgresql3 patroni[738]: 2022-10-29 14:38:52,388 INFO: no action. I am (postgresql3), the leader with the lock
+Oct 29 14:39:02 postgresql3 patroni[738]: 2022-10-29 14:39:02,388 INFO: no action. I am (postgresql3), the leader with the lock
+Oct 29 14:39:08 postgresql3 patroni[738]: 2022-10-29 14:39:08,310 INFO: received switchover request with leader=postgresql3 candidate=postgresql1 scheduled_at=None
+Oct 29 14:39:08 postgresql3 patroni[738]: 2022-10-29 14:39:08,313 INFO: Got response from postgresql1 http://192.168.0.10:8008/patroni: {"state": "running", "postmaster_start_time": "2022-10-29 14:22:42.207541+00:00", "role": "replica", "server_version": 150000, "xlog": {"received_location": 394543176, "replayed_location": 394543176, "replayed_timestamp": "2022-10-29 14:36:37.500227+00:00", "paused": false}, "timeline": 31, "dcs_last_seen": 1667054342, "database_system_identifier": "7154796699611842821", "patroni": {"version": "2.1.4", "scope": "postgres"}}
+Oct 29 14:39:08 postgresql3 patroni[738]: 2022-10-29 14:39:08,410 INFO: Got response from postgresql1 http://192.168.0.10:8008/patroni: {"state": "running", "postmaster_start_time": "2022-10-29 14:22:42.207541+00:00", "role": "replica", "server_version": 150000, "xlog": {"received_location": 394543176, "replayed_location": 394543176, "replayed_timestamp": "2022-10-29 14:36:37.500227+00:00", "paused": false}, "timeline": 31, "dcs_last_seen": 1667054342, "database_system_identifier": "7154796699611842821", "patroni": {"version": "2.1.4", "scope": "postgres"}}
+Oct 29 14:39:08 postgresql3 patroni[738]: 2022-10-29 14:39:08,362 INFO: Lock owner: postgresql3; I am postgresql3
+Oct 29 14:39:08 postgresql3 patroni[738]: 2022-10-29 14:39:08,461 INFO: manual failover: demoting myself
+Oct 29 14:39:08 postgresql3 patroni[738]: 2022-10-29 14:39:08,461 INFO: Demoting self (graceful)
+Oct 29 14:39:09 postgresql3 patroni[738]: 2022-10-29 14:39:09,987 INFO: Leader key released
+Oct 29 14:39:09 postgresql3 patroni[738]: 2022-10-29 14:39:09,988 INFO: Lock owner: postgresql1; I am postgresql3
+Oct 29 14:39:09 postgresql3 patroni[738]: 2022-10-29 14:39:09,988 INFO: manual failover: demote in progress
+Oct 29 14:39:11 postgresql3 patroni[738]: 2022-10-29 14:39:11,178 INFO: Lock owner: postgresql1; I am postgresql3
+Oct 29 14:39:11 postgresql3 patroni[738]: 2022-10-29 14:39:11,178 INFO: manual failover: demote in progress
+Oct 29 14:39:11 postgresql3 patroni[738]: 2022-10-29 14:39:11,654 INFO: Lock owner: postgresql1; I am postgresql3
+Oct 29 14:39:11 postgresql3 patroni[738]: 2022-10-29 14:39:11,654 INFO: manual failover: demote in progress
+Oct 29 14:39:11 postgresql3 patroni[738]: 2022-10-29 14:39:11,988 INFO: closed patroni connection to the postgresql cluster
+Oct 29 14:39:12 postgresql3 patroni[738]: 2022-10-29 14:39:12,109 INFO: postmaster pid=1611
+Oct 29 14:39:12 postgresql3 patroni[1612]: localhost:5432 - no response
+Oct 29 14:39:12 postgresql3 patroni[1611]: 2022-10-29 14:39:12.122 UTC [1611] LOG:  redirecting log output to logging collector process
+Oct 29 14:39:12 postgresql3 patroni[1611]: 2022-10-29 14:39:12.122 UTC [1611] HINT:  Future log output will appear in directory "log".
+Oct 29 14:39:13 postgresql3 patroni[1622]: localhost:5432 - accepting connections
+Oct 29 14:39:13 postgresql3 patroni[1624]: localhost:5432 - accepting connections
+```
+В логе ноды `postgresql1`:
+```
+Oct 29 14:39:02 postgresql1 patroni[793]: 2022-10-29 14:39:02,465 INFO: no action. I am (postgresql1), a secondary, and following a leader (postgresql3)
+Oct 29 14:39:09 postgresql1 patroni[793]: 2022-10-29 14:39:09,918 INFO: no action. I am (postgresql1), a secondary, and following a leader (postgresql3)
+Oct 29 14:39:09 postgresql1 patroni[793]: 2022-10-29 14:39:09,969 INFO: Cleaning up failover key after acquiring leader lock...
+Oct 29 14:39:10 postgresql1 patroni[793]: 2022-10-29 14:39:10,015 WARNING: Could not activate Linux watchdog device: "Can't open watchdog device: [Errno 2] No such file or directory: '/dev/watchdog'"
+Oct 29 14:39:10 postgresql1 patroni[793]: 2022-10-29 14:39:10,059 INFO: promoted self to leader by acquiring session lock
+Oct 29 14:39:10 postgresql1 patroni[1881]: server promoting
+Oct 29 14:39:10 postgresql1 patroni[793]: 2022-10-29 14:39:10,061 INFO: cleared rewind state after becoming the leader
+Oct 29 14:39:11 postgresql1 patroni[793]: 2022-10-29 14:39:11,540 INFO: no action. I am (postgresql1), the leader with the lock
+Oct 29 14:39:11 postgresql1 patroni[793]: 2022-10-29 14:39:11,679 INFO: no action. I am (postgresql1), the leader with the lock
+```
+
+Что на стороне клиента:
+![14](/HomeWorks/project/14.png)
