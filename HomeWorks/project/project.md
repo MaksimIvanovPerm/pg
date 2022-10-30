@@ -944,10 +944,7 @@ stonith-watchdog-timeout:   0
 ```
 
 Дальше, посмотреть список всех поддерживаемых типов ресурсов в кластере можно по `pcs resource list`
-Нас интересут ресурс такого типа:
-```
-ocf:heartbeat:IPaddr2 - Manages virtual IPv4 and IPv6 addresses (Linux specific version)
-```
+Нас интересут ресурс такого типа: `ocf:heartbeat:IPaddr2 - Manages virtual IPv4 and IPv6 addresses (Linux specific version)`
 
 [Дока на тип ocf:heartbeat:IPaddr2](http://www.linux-ha.org/doc/man-pages/re-ra-IPaddr2.html), ресурса.
 [Дока на свойство meta ресурсов](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/high_availability_add-on_reference/s1-resourceopts-haar), в частности - тут важно свойство `migration-threshold`
