@@ -837,7 +837,7 @@ Sun Oct 23 04:40:08 PM UTC 2022
 
 ### Полезности
 
-[Статья с примером орг-ции "плавающего" ip-шника](https://github.com/IlgizMamyshev/dnscp/blob/main/dnscp.sh)
+[Статья с примером орг-ции "плавающего" ip-шника](https://imamyshev.wordpress.com/2022/05/29/dns-connection-point-for-patroni/) и [гитхаб-скрипт](https://github.com/IlgizMamyshev/dnscp/blob/main/dnscp.sh), который упоминается в этой статье.
 
 [ENV-переменные, которые понимает и учитывает патрони](https://patroni.readthedocs.io/en/latest/ENVIRONMENT.html)
 
@@ -857,6 +857,7 @@ ip address del $VIP/$PREFIX dev $IFNAME
 Для того чтобы организовать подключение в активную oracle-субд по какому то одному ip/fqdn использовали такую архитектуру.
 На все машины, на которых выполнялись активная бд, или реплики - ставился corosunc/pacemaker.
 Ноды объекдинялись в corosync-кластер, в кластере конфигурировался vip, перемещение vip-а по нодам кластера - выполнялось ч/з picemaker-команды (т.е.: это команды в bash-е).
+[Интересный доклад](https://www.youtube.com/watch?v=fOB49y2vGso), в котором в corosync/pacemaker-кластерваре, засунули вообще всю пг-базу как кластерный сервис.
 
 Таким образом, для пострескл-субд, под патрони-менеджментом, можно сделать тоже самое.
 А перемещение vip-а организовать в callback-скриптах патрони, которые он будет вызывать по событиям `on_stop on_start`.
