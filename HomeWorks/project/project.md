@@ -836,6 +836,7 @@ Sun Oct 23 04:40:08 PM UTC 2022
 ![9](/HomeWorks/project/9.png)
 
 ### Полезности
+#### Плавающий ip-шник.
 
 [Статья с примером орг-ции "плавающего" ip-шника](https://imamyshev.wordpress.com/2022/05/29/dns-connection-point-for-patroni/) и [гитхаб-скрипт](https://github.com/IlgizMamyshev/dnscp/blob/main/dnscp.sh), который упоминается в этой статье.
 
@@ -857,14 +858,147 @@ ip address del $VIP/$PREFIX dev $IFNAME
 Для того чтобы организовать подключение в активную oracle-субд по какому то одному ip/fqdn использовали такую архитектуру.
 На все машины, на которых выполнялись активная бд, или реплики - ставился corosunc/pacemaker.
 Ноды объекдинялись в corosync-кластер, в кластере конфигурировался vip, перемещение vip-а по нодам кластера - выполнялось ч/з picemaker-команды (т.е.: это команды в bash-е).
-[Интересный доклад](https://www.youtube.com/watch?v=fOB49y2vGso), в котором в corosync/pacemaker-кластерваре, засунули вообще всю пг-базу как кластерный сервис.
 
 Таким образом, для пострескл-субд, под патрони-менеджментом, можно сделать тоже самое.
 А перемещение vip-а организовать в callback-скриптах патрони, которые он будет вызывать по событиям `on_stop on_start`.
 Патрони - будет сливать callback-скрипту роль пг-кластера, который он запускает (или стопает) на какой то ноде.
 Ну и, в callback-скрипте, глядя на эту роль - выдавать команду перемещения/подьёма vip-а, на данную ноду, где срабатывает данный callback-скрипт (если запускается пг-лидер), или не выдавать (если запускается пг-реплика).
 
-В рамках этой работы ограничусь только: haproxy, как средством, пусть и не отказоустойчивым, организации доступа в патрони-менеджмент пг-базу, клиентам, по одному ip/fqdn.
+Попробую пояснить всё это: более развёрнуто.
+Есть такой проект: [Corosync](http://corosync.github.io/corosync/) - это фреймворк, опенсорс-софтваре, реализующее функционал коммуникационной системы, на нескольких машинах.
+К ней есть [Pacemaker](https://clusterlabs.org/pacemaker/) - ресурсный менеджер, для построения, управления ресурсами в кластере, работает поверх corosync-ка.
+И над этим всем есть ещё одна надстройка, в виде cli-утилиты, с помощью команд которой можно рулить corosync/pacemaker-кластером.
+
+Как пример как можно создать кластер, например на вот этих же, трёх, нодах: `postgresql1 postgresql2 postgresql3` и определить в нём кластерный ресурс в виде ip-адреса.
+На всех трёх нодах выполняем, от рута:
+```shell
+echo "192.168.0.10 postgresql1
+192.168.0.11 postgresql2
+192.168.0.12 postgresql3" >> /etc/hosts
+
+apt install pacemaker corosync pcs -y
+echo "hacluster:wsx1" | chpasswd
+systemctl enable pcsd; systemctl status pcsd;
+```
+
+Далее, на какой то одной ноде, от рута:
+```shell
+pcs host auth postgresql1 addr=192.168.0.10 postgresql2 addr=192.168.0.11 postgresql3 addr=192.168.0.12 -u hacluster -p wsx1
+```
+
+Если не получили ошибки, то: создаём кластер:
+```shell
+pcs cluster setup --force myhacluster postgresql1 addr=192.168.0.10 postgresql2 addr=192.168.0.11 postgresql3 addr=192.168.0.12
+Warning: postgresql1: The host seems to be in a cluster already as the following services are found to be running: 'corosync', 'pacemaker'. If the host is not part of a cluster, stop the services and retry
+Warning: postgresql1: The host seems to be in a cluster already as cluster configuration files have been found on the host. If the host is not part of a cluster, run 'pcs cluster destroy' on host 'postgresql1' to remove those configuration files
+Warning: postgresql3: The host seems to be in a cluster already as the following services are found to be running: 'corosync', 'pacemaker'. If the host is not part of a cluster, stop the services and retry
+Warning: postgresql3: The host seems to be in a cluster already as cluster configuration files have been found on the host. If the host is not part of a cluster, run 'pcs cluster destroy' on host 'postgresql3' to remove those configuration files
+Warning: postgresql2: The host seems to be in a cluster already as the following services are found to be running: 'corosync', 'pacemaker'. If the host is not part of a cluster, stop the services and retry
+Warning: postgresql2: The host seems to be in a cluster already as cluster configuration files have been found on the host. If the host is not part of a cluster, run 'pcs cluster destroy' on host 'postgresql2' to remove those configuration files
+Destroying cluster on hosts: 'postgresql1', 'postgresql2', 'postgresql3'...
+postgresql1: Successfully destroyed cluster
+postgresql3: Successfully destroyed cluster
+postgresql2: Successfully destroyed cluster
+Requesting remove 'pcsd settings' from 'postgresql1', 'postgresql2', 'postgresql3'
+postgresql1: successful removal of the file 'pcsd settings'
+postgresql2: successful removal of the file 'pcsd settings'
+postgresql3: successful removal of the file 'pcsd settings'
+Sending 'corosync authkey', 'pacemaker authkey' to 'postgresql1', 'postgresql2', 'postgresql3'
+postgresql1: successful distribution of the file 'corosync authkey'
+postgresql1: successful distribution of the file 'pacemaker authkey'
+postgresql2: successful distribution of the file 'corosync authkey'
+postgresql2: successful distribution of the file 'pacemaker authkey'
+postgresql3: successful distribution of the file 'corosync authkey'
+postgresql3: successful distribution of the file 'pacemaker authkey'
+Sending 'corosync.conf' to 'postgresql1', 'postgresql2', 'postgresql3'
+postgresql1: successful distribution of the file 'corosync.conf'
+postgresql2: successful distribution of the file 'corosync.conf'
+postgresql3: successful distribution of the file 'corosync.conf'
+Cluster has been successfully set up.
+cat /etc/corosync/corosync.conf | grep "logfile"
+```
+
+Разрешаем участие всех нод, в кластере и запускаем кластер:
+```shell
+pcs cluster enable --all
+pcs cluster start --all
+pcs status
+```
+![21](/HomeWorks/project/21.png)
+
+[Дока, по св-вам кластера](https://clusterlabs.org/pacemaker/doc/deprecated/en-US/Pacemaker/1.1/html/Pacemaker_Explained/s-cluster-options.html)
+Определять и прописывать в кластер механизм отстрела зависшей ноды кластера - я быстро не вспомнил/не разобрался, поэтому: просто запретил делать `stonith`:
+```shell
+pcs property set stonith-enabled=false
+pcs property config --all | sort -k 1 -t ":" | column -t
+```
+```
+...
+startup-fencing:            true
+stonith-action:             reboot
+stonith-enabled:            false
+stonith-max-attempts:       10
+stonith-timeout:            60s
+stonith-watchdog-timeout:   0
+...
+```
+
+Дальше, посмотреть список всех поддерживаемых типов ресурсов в кластере можно по `pcs resource list`
+Нас интересут ресурс такого типа:
+```
+ocf:heartbeat:IPaddr2 - Manages virtual IPv4 and IPv6 addresses (Linux specific version)
+```
+
+[Дока на тип ocf:heartbeat:IPaddr2](http://www.linux-ha.org/doc/man-pages/re-ra-IPaddr2.html), ресурса.
+[Дока на свойство meta ресурсов](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/high_availability_add-on_reference/s1-resourceopts-haar), в частности - тут важно свойство `migration-threshold`
+
+Определяем ресурс типа `ocf:heartbeat:IPaddr2`, в кластере:
+```shell
+pcs resource create universal_ip ocf:heartbeat:IPaddr2 ip=192.168.0.14 cidr_netmask=24 meta migration-threshold="0" op monitor timeout="60s" interval="10s" on-fail="restart" op stop timeout="60s" interval="0s" on-fail="ignore" op start timeout="60s" interval="0s" on-fail="stop
+```
+
+Смотрим и двигаем кластерный ресурс, по нодам кластера - куда надо.
+```shell
+pcs resource status
+pcs status
+ip -f inet addr show eth0
+pcs resource move universal_ip postgresql2
+ip -f inet addr show eth0
+```
+![22](/HomeWorks/project/22.png)
+![23](/HomeWorks/project/23.png)
+
+Собственно, вот - у нас есть ip-шник, который, как кластерный ресурс, можно двигать по кластеру, туда и тогда куда перемещается лидер, в патрони-менеджмент кластере.
+
+Отдельный вопрос, что это, именно в таком виде несколько оверинжиниринг.
+Потому что тот же самый функционал можно получить и просто выполняя команды по навешиванию/убиранию дополнительного ip-адреса, на/с сетевой интерфейс, во время и в соответствии переездам пг-лидера, в патрони-менеджмент кластере.
+
+Вкручивать ip-адрес, как кластерный ресурс становится много больше смысла, если в corosync/pacemaker-кластер засовывается, как кластерный сервис вся пг-база.
+Тогда сама пг-база, как кластерный ресурс, и то что её нужно для работы например - ip-адрес(а), дисковые ресурсы, файлы, и прочее и прочее и прочее: тоже могут быть определены как группа взаимозависимых кластерных ресурсов (и/или как несколько групп, зависящих друг от друга)
+Тогда можно определять всякие кудрявости, типа того что - если какой то ресурс, из данной группы, или из группы от которой есть зависимость - не запустился, то всё, ошибка: не запускать данную группу.
+[Интересный доклад](https://www.youtube.com/watch?v=fOB49y2vGso), в котором в corosync/pacemaker-кластерваре, засунули вообще всю пг-базу как кластерный сервис.
+[Большая статья на ClusterLab](https://wiki.clusterlabs.org/wiki/PgSQL_Replicated_Cluster#Operations) о инсталяции пг-кластера, как кластерного сервиса, в corosync/pacemaker-кластерваре, в виде 2-х нодового кластера.
+Активный пг-кластер работает на одной ноде, и если, по каким то причинам, активный экземпляр - становится не доступен, кластерваре промоутит реплику от этого пг-кластера, на второй ноде.
+[Ещё статья](https://support.itrium.ru/pages/viewpage.action?pageId=962643819), руссокязычная, на эту тему.
+[Короткий видосик](https://www.youtube.com/watch?v=8IhZ43LCC3o) про определение группы из двух кластерных ресурсов.
+
+Что у меня не получилось, с этим плавающим ip-шником.
+Пусть есть такая обстановка:
+![24](/HomeWorks/project/24.png)
+
+При этом, с отдельно стоящей вм:
+![25](/HomeWorks/project/25.png)
+
+Файрволлов нет, на обоих сторонах, и локально (в смысле - с `postgresql2` - подключается):
+![26](/HomeWorks/project/26.png)
+![27](/HomeWorks/project/27.png)
+
+
+Ну, и раз такая заполдянка от YC, с коннективити, только только haproxy сделаю, как некое изображение подключения к патрони-менеджмент бд, по единому адресу.
+
+#### haproxy
+
+По причинам, пояснённым в пункте выше, в рамках этой работы ограничусь только: haproxy, как средством, пусть и не отказоустойчивым, организации доступа в патрони-менеджмент пг-базу, клиентам, по одному ip/fqdn.
 Подготовка отдельной ubuntu-вм c haproxy:
 ```shell
 cd
