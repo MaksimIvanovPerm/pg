@@ -952,7 +952,7 @@ stonith-watchdog-timeout:   0
 
 Определяем ресурс типа `ocf:heartbeat:IPaddr2`, в кластере:
 ```shell
-pcs resource create universal_ip ocf:heartbeat:IPaddr2 ip=192.168.0.14 cidr_netmask=24 meta migration-threshold="0" op monitor timeout="60s" interval="10s" on-fail="restart" op stop timeout="60s" interval="0s" on-fail="ignore" op start timeout="60s" interval="0s" on-fail="stop
+pcs resource create universal_ip ocf:heartbeat:IPaddr2 ip=192.168.0.14 cidr_netmask=24 meta migration-threshold="0" nic=eth0 op monitor timeout="60s" interval="10s" on-fail="restart" op stop timeout="60s" interval="0s" on-fail="ignore" op start timeout="60s" interval="0s" on-fail="stop
 ```
 
 Смотрим и двигаем кластерный ресурс, по нодам кластера - куда надо.
