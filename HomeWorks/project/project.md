@@ -320,6 +320,7 @@ etcdctl --user=root:qaz get --prefix /service/
 
 ## Сборка патрони-менеджмент кластера.
 [Программная, очень подробная, статья от 1С](https://its.1c.ru/db/metod8dev/content/5971/hdoc)
+
 [Про systemd-оснастку](https://timeweb.cloud/blog/kak-ispolzovat-systemctl-dlya-upravleniya-sluzhbami-systemd)
 
 Установка необходимого ПО:
